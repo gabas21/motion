@@ -1,0 +1,161 @@
+basePath: /api/v1
+definitions:
+  handlers.TaskInput:
+    properties:
+      category:
+        enum:
+        - personal
+        - work
+        - education
+        - general
+        - education_reminder
+        type: string
+      description:
+        maxLength: 5000
+        type: string
+      dueDate:
+        type: string
+      priority:
+        maximum: 5
+        minimum: 1
+        type: integer
+      timeEstimateMinutes:
+        maximum: 480
+        minimum: 0
+        type: integer
+      title:
+        maxLength: 255
+        minLength: 1
+        type: string
+    required:
+    - category
+    - title
+    type: object
+  models.Task:
+    properties:
+      category:
+        description: work, personal, etc
+        type: string
+      completedAt:
+        type: string
+      createdAt:
+        type: string
+      description:
+        type: string
+      dueDate:
+        type: string
+      id:
+        type: string
+      priority:
+        description: 1 (lowest) to 5 (highest)
+        type: integer
+      reminderSent:
+        type: boolean
+      scheduledEnd:
+        type: string
+      scheduledStart:
+        type: string
+      status:
+        description: pending, in_progress, completed, cancelled
+        type: string
+      timeEstimateMinutes:
+        type: integer
+      title:
+        type: string
+      updatedAt:
+        type: string
+      userId:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: Backend API Server for Motion Productivity App.
+  title: Motion API
+  version: "1.0"
+paths:
+  /tasks:
+    get:
+      consumes:
+      - application/json
+      description: Get tasks for the authenticated user with optional filtering and
+        pagination
+      parameters:
+      - description: Filter by status
+        enum:
+        - pending
+        - in_progress
+        - completed
+        - cancelled
+        in: query
+        name: status
+        type: string
+      - description: Filter by category
+        in: query
+        name: category
+        type: string
+      - description: Page number (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: Items per page (default 50, max 100)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get tasks list
+      tags:
+      - tasks
+    post:
+      consumes:
+      - application/json
+      description: Create a new task for the authenticated user
+      parameters:
+      - description: Task Input Data
+        in: body
+        name: task
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.TaskInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Task'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create a new task
+      tags:
+      - tasks
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

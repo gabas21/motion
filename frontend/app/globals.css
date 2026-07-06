@@ -1,0 +1,409 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #F0F6FC; /* Fresh Sky Linen - bright, clean, fun blue-tinted white */
+  --foreground: #1D2A44; /* Deep Indigo Charcoal - premium navy black, high readability */
+  
+  --font-heading: var(--font-fredoka), 'Fredoka', sans-serif;
+  --font-body: var(--font-nunito), 'Nunito', sans-serif;
+  --font-mono: var(--font-mono), 'Space Mono', monospace;
+
+  /* Warna-warna Bright & Fun Accents (Vibrant Blue Dominant Palette) */
+  --neo-yellow: #FBBF24; /* Sunny Amber Yellow */
+  --neo-yellow-glow: rgba(251, 191, 36, 0.1);
+  --neo-yellow-glow-hover: rgba(251, 191, 36, 0.22);
+  --neo-violet: #8B5CF6; /* Vibrant Playful Purple */
+  --neo-mint: #38BDF8; /* Bright Sky Blue */
+  --neo-pink: #EC4899; /* Vibrant Bubblegum Pink */
+  --neo-blue: #0E86D4; /* Sea Blue */
+  --neo-orange: #FF7A00; /* Energetic Orange */
+  
+  --primary: #0E86D4; /* Primary Sea Blue */
+  --primary-hover: #0A67A3;
+}
+
+html {
+  font-size: 16px;
+}
+
+@media (min-width: 1024px) {
+  html {
+    font-size: 16.5px;
+  }
+}
+
+@media (min-width: 1280px) {
+  html {
+    font-size: 17px;
+  }
+}
+
+@media (min-width: 1440px) {
+  html {
+    font-size: 17.5px;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  color: var(--foreground);
+  background-color: var(--background);
+  /* Pola grid bento minimalis & pendaran cahaya pastel (Fresh Blue Light Leaks) */
+  background-image: 
+    radial-gradient(circle at 10% 20%, rgba(37, 99, 235, 0.06) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(6, 182, 212, 0.05) 0%, transparent 45%),
+    linear-gradient(rgba(29, 42, 68, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(29, 42, 68, 0.02) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+  font-family: var(--font-body);
+  overflow-x: hidden;
+  position: relative;
+  min-height: 100vh;
+}
+
+/* EFEK GLOW DI LATAR BELAKANG */
+body::before {
+  content: "";
+  position: absolute;
+  top: 15%;
+  left: 30%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.06) 0%, transparent 70%);
+  z-index: -1;
+  pointer-events: none;
+  filter: blur(60px);
+}
+
+body::after {
+  content: "";
+  position: absolute;
+  bottom: 20%;
+  right: 25%;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.05) 0%, transparent 70%);
+  z-index: -1;
+  pointer-events: none;
+  filter: blur(80px);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  letter-spacing: -0.025em;
+  font-weight: 700;
+  color: #332F2E;
+}
+
+/* COMPREHENSIVE TEXT COLOR OVERRIDES FOR HIGH CONTRAST LEGIBILITY (INDIGO CHARCOAL) */
+.text-black { color: #1D2A44 !important; } /* Deep Indigo Charcoal */
+[class*="text-black/"] { color: rgba(29, 42, 68, 0.75) !important; } /* Overrides any tailwind text-black/opacity to indigo charcoal! */
+.text-gray-300 { color: #4B5563 !important; } /* Slate Medium Gray */
+.text-gray-400 { color: #6B7280 !important; }
+.text-gray-500 { color: #6B7280 !important; }
+.text-gray-550 { color: #4B5563 !important; }
+.text-gray-600 { color: #374151 !important; }
+.text-gray-700 { color: #1F2937 !important; }
+.text-gray-800 { color: #1D2A44 !important; }
+.text-gray-900 { color: #1D2A44 !important; }
+
+/* KARTU ELEVATED PREMIUM NEOBRUTALISM (Tidak Pasaran) */
+/* KARTU ELEVATED PREMIUM NEOBRUTALISM (Bright & Fun - 3D Tactile) */
+.neo-card {
+  background: #FFFFFF !important;
+  border: 1.5px solid rgba(29, 42, 68, 0.15) !important;
+  box-shadow: 0 8px 30px var(--neo-yellow-glow), 0 2px 8px rgba(251, 191, 36, 0.04) !important;
+  border-radius: 24px !important;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.neo-card-hover:hover {
+  transform: translateY(-4px) !important;
+  box-shadow: 0 16px 40px var(--neo-yellow-glow-hover), 0 4px 12px rgba(251, 191, 36, 0.08) !important;
+  border-color: rgba(251, 191, 36, 0.3) !important;
+}
+
+.neo-card-active:active {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px var(--neo-yellow-glow) !important;
+}
+
+/* TOMBOL TACTILE NEOBRUTALISM */
+.neo-btn {
+  border: 1.5px solid rgba(29, 42, 68, 0.18) !important;
+  background: #FFFFFF !important;
+  color: #1D2A44 !important;
+  box-shadow: 0 2px 4px var(--neo-yellow-glow), 0 1px 2px rgba(251, 191, 36, 0.04) !important;
+  border-radius: 12px !important;
+  font-weight: 700 !important;
+  font-family: var(--font-heading) !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  user-select: none !important;
+}
+
+.neo-btn:hover {
+  transform: translateY(-1.5px) !important;
+  background: #F0F6FC !important;
+  box-shadow: 0 6px 12px var(--neo-yellow-glow-hover), 0 2px 4px rgba(251, 191, 36, 0.08) !important;
+  border-color: rgba(251, 191, 36, 0.3) !important;
+}
+
+.neo-btn:active {
+  transform: translateY(0.5px) !important;
+  box-shadow: 0 1px 2px var(--neo-yellow-glow) !important;
+}
+
+/* KOLOM MASUKAN PREMIUM NEOBRUTALISM */
+.neo-input {
+  background: #FFFFFF !important;
+  border: 1.5px solid rgba(29, 42, 68, 0.15) !important;
+  box-shadow: inset 0 1px 2px rgba(29, 42, 68, 0.02) !important;
+  border-radius: 12px !important;
+  color: #1D2A44 !important;
+  font-weight: 600 !important;
+  transition: all 0.15s ease !important;
+}
+
+.neo-input:focus {
+  outline: none !important;
+  background: #FFFFFF !important;
+  border-color: #2563EB !important;
+  box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.15) !important;
+}
+
+/* SELEKTOR DROPDOWN NEOBRUTALISM */
+.neo-select {
+  background: #FFFFFF !important;
+  border: 1.5px solid rgba(29, 42, 68, 0.15) !important;
+  box-shadow: inset 0 1px 2px rgba(29, 42, 68, 0.02) !important;
+  border-radius: 12px !important;
+  color: #1D2A44 !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+
+.neo-select:focus {
+  outline: none !important;
+  border-color: #2563EB !important;
+  box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.15) !important;
+}
+
+.neo-select option {
+  background-color: #FFFFFF !important;
+  color: #1D2A44 !important;
+}
+
+/* LENCANA TACTILE NEOBRUTALISM */
+.neo-badge {
+  border: 1px solid rgba(29, 42, 68, 0.15) !important;
+  background: #FFFFFF !important;
+  color: #1D2A44 !important;
+  font-weight: 700 !important;
+  font-family: var(--font-body) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 1px 2px var(--neo-yellow-glow) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* FUTURISTIC SPATIAL GLASS CLASSES SPECIFICALLY FOR ASEP AI CHAT WIDGET */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.65) !important;
+  backdrop-filter: blur(25px) !important;
+  -webkit-backdrop-filter: blur(25px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
+  box-shadow: 0 12px 40px 0 rgba(51, 47, 46, 0.06), 0 0 1px 0 rgba(51, 47, 46, 0.1) !important;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.5) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.6) !important;
+  box-shadow: 0 4px 16px 0 rgba(51, 47, 46, 0.02) !important;
+  border-radius: 12px !important;
+}
+
+.glass-btn {
+  background: rgba(255, 255, 255, 0.85) !important;
+  border: 1px solid rgba(51, 47, 46, 0.08) !important;
+  box-shadow: 0 4px 12px rgba(51, 47, 46, 0.02) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  color: #332F2E !important;
+}
+
+.glass-btn:hover {
+  background: #FFFFFF !important;
+  border-color: rgba(217, 138, 114, 0.4) !important;
+  box-shadow: 0 6px 16px rgba(217, 138, 114, 0.06) !important;
+  transform: translateY(-0.5px) !important;
+}
+
+.glass-btn:active {
+  transform: translateY(0.5px) !important;
+}
+
+.glass-input {
+  background: rgba(255, 255, 255, 0.7) !important;
+  border: 1px solid rgba(51, 47, 46, 0.08) !important;
+  box-shadow: inset 0 1px 2px rgba(51, 47, 46, 0.01) !important;
+  color: #332F2E !important;
+  transition: all 0.15s ease !important;
+}
+
+.glass-input:focus {
+  outline: none !important;
+  border-color: rgba(217, 138, 114, 0.45) !important;
+  box-shadow: 0 0 0 4px rgba(217, 138, 114, 0.06) !important;
+}
+
+/* CUSTOM SCROLLBAR MINIMALIS SLATE */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F0F6FC;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(29, 42, 68, 0.15);
+  border: 2px solid #F0F6FC;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+/* ANIME.JS UTILITY CLASSES & STORYTELLING VARIABLES */
+.char {
+  display: inline-block;
+  transform-origin: center center;
+  will-change: transform, opacity;
+}
+
+.scroll-progress-bar {
+  width: 0%;
+  will-change: width;
+}
+
+.story-section {
+  position: relative;
+  width: 100%;
+  min-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 4rem 1.5rem;
+}
+
+/* ─── MODERN SHIMMER SKELETON SYSTEM ─────────────────────────────────────────
+   Efek shimmer sweep yang smooth — jauh lebih premium dari animate-pulse biasa.
+   Warna disesuaikan dengan palette Motion (blue-tinted white).
+   ─────────────────────────────────────────────────────────────────────────── */
+
+@keyframes shimmer {
+  0% {
+    background-position: -600px 0;
+  }
+  100% {
+    background-position: 600px 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    #EEF2F7 0px,
+    #F8FAFD 40px,
+    #EEF2F7 80px
+  );
+  background-size: 600px 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+  will-change: background-position;
+}
+
+/* Variasi skeleton lebih terang untuk area dark/colored */
+.skeleton-shimmer-light {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.15) 0px,
+    rgba(255,255,255,0.35) 40px,
+    rgba(255,255,255,0.15) 80px
+  );
+  background-size: 600px 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+  will-change: background-position;
+}
+
+/* ─── WEATHER THEME ANIMATIONS ─────────────────────────────────────────────── */
+
+@keyframes lightning-flash {
+  0%, 100% { opacity: 0; }
+  10%, 30% { opacity: 0.08; }
+  20% { opacity: 0.15; }
+}
+
+.animate-lightning {
+  animation: lightning-flash 4s ease-in-out infinite;
+}
+
+@keyframes mist-drift {
+  0% { transform: translateX(-10%) scaleX(1); opacity: 0.06; }
+  50% { transform: translateX(5%) scaleX(1.05); opacity: 0.1; }
+  100% { transform: translateX(-10%) scaleX(1); opacity: 0.06; }
+}
+
+.animate-mist {
+  animation: mist-drift 8s ease-in-out infinite;
+}
+
+@keyframes sun-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.15; }
+  50% { transform: scale(1.15); opacity: 0.25; }
+}
+
+.animate-sun-glow {
+  animation: sun-pulse 4s ease-in-out infinite;
+}
+
+/* Weather-adaptive card glassmorphism utilities */
+.weather-glass-dark {
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.weather-glass-light {
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn {
+  animation: fadeInUp 0.4s ease-out both;
+}
+

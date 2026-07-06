@@ -1,0 +1,12 @@
+*.o
+*.a
+*.exe
+__pycache__
+*.log
+.git
+.gitignore
+.env
+.env.local
+.DS_Store
+.vscode
+.idea

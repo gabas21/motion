@@ -1,0 +1,40 @@
+services:
+  frontend-next:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+    # Dev mode: tidak perlu tunggu backend healthy, cukup started
+    depends_on:
+      backend-go:
+        condition: service_started
+
+  backend-go:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    volumes:
+      - ./backend:/app
+      - backend_uploads:/app/public/downloads  # Persist uploads di dev
+    ports:
+      - "8080:8080"
+    command: air -c .air.toml
+    # Dev mode: air butuh ~20-30 detik untuk compile sebelum server siap
+    # Override start_period agar health check tidak gagal prematur
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  ml-service-python:
+    volumes:
+      - ./ml_service:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload

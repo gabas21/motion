@@ -1,0 +1,68 @@
+# Hermes Agent Configuration untuk Motion App
+# Pilihan C: Hermes sebagai "AI Brain" saja — bukan Telegram bot langsung
+# Bot Telegram Go tetap berjalan; Hermes handle memory + reasoning via API
+
+# ─── Model Provider ───────────────────────────────────────────────────────────
+model:
+  # Gunakan OpenRouter sebagai gateway model
+  provider: openrouter
+  api_key: "${OPENROUTER_API_KEY}"
+  
+  # Model Hermes 3 — tool calling yang konsisten & reasoning yang kuat
+  # Catatan: Verifikasi ketersediaan model di https://openrouter.ai/models?q=hermes
+  # Alternatif gratis jika Hermes tidak tersedia:
+  #   - "meta-llama/llama-3.3-70b-instruct:free"     (sudah dipakai di .env)
+  #   - "google/gemma-4-31b-it:free"                  (support tool calling)
+  name: "nousresearch/hermes-3-llama-3.1-70b"
+  
+  # Fallback jika model utama tidak tersedia / rate limited
+  fallback:
+    - "meta-llama/llama-3.3-70b-instruct:free"
+    - "google/gemma-4-31b-it:free"
+
+# ─── MCP Servers ──────────────────────────────────────────────────────────────
+mcp_servers:
+  motion-scheduler:
+    type: stdio
+    command: python
+    args: ["/app/motion_mcp_server.py"]
+    env:
+      MOTION_API_URL: "${MOTION_API_URL}"
+      MOTION_INTERNAL_SECRET: "${MOTION_INTERNAL_SECRET}"
+
+# ─── Memory (Persistent) ──────────────────────────────────────────────────────
+# CATATAN: Motion sudah handle persistent memory via PostgreSQL di Go backend.
+# Hermes memory di sini adalah untuk skill library & automation rules saja.
+memory:
+  # Gunakan file system lokal untuk skill library (persistent via Docker volume)
+  backend: filesystem
+  path: "/home/node/.hermes/memory"
+
+# ─── Channels ─────────────────────────────────────────────────────────────────
+# PILIHAN C: Hermes TIDAK menjadi Telegram bot langsung.
+# Bot Telegram Go tetap berjalan, memanggil Hermes via API.
+# Hermes hanya expose HTTP API di port 8642.
+channels:
+  # Hermes Web UI & API — untuk debugging dan integrasi manual
+  http:
+    enabled: true
+    port: 8642
+    host: "0.0.0.0"
+    # Endpoint yang diekspos:
+    # POST /api/chat  — Kirim pesan, dapat balasan
+    # GET  /api/skills — Daftar skill yang sudah dipelajari
+
+  # Telegram DINONAKTIFKAN — Bot Go yang handle Telegram
+  # Aktifkan hanya jika ingin migrasi penuh ke Hermes (Pilihan A/B)
+  telegram:
+    enabled: false
+    token: "${TELEGRAM_BOT_TOKEN}"
+
+# ─── Automation (Cron) ────────────────────────────────────────────────────────
+# Hermes bisa menjalankan otomasi terjadwal via MCP tools
+automations:
+  # Contoh: Cek tugas overdue setiap pagi jam 8
+  # - name: "morning_check"
+  #   cron: "0 8 * * *"
+  #   prompt: "Cek semua user yang punya tugas overdue dan kirim notifikasi"
+  #   tools: ["get_pending_tasks", "ask_asep"]

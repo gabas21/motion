@@ -1,0 +1,111 @@
+services:
+  # 1. Redis Cache & Task Queue
+  redis-queue:
+    image: redis:7-alpine
+    container_name: motion-redis
+    ports:
+      - "6379:6379"
+    restart: always
+    volumes:
+      - redis_data:/data
+    networks:
+      - motion-network
+
+  # 2. Mailpit SMTP & Web UI
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: motion-mailpit
+    ports:
+      - "1025:1025"    # SMTP
+      - "8025:8025"    # Web UI
+    restart: always
+    networks:
+      - motion-network
+    environment:
+      - MP_SMTP_AUTH_ACCEPT_ANY=true
+      - MP_SMTP_AUTH_ALLOW_INSECURE=true
+      - MP_UI_WEBUI_ALLOWED_CIDR=0.0.0.0/0
+
+  # 3. Python ML Microservice (FastAPI)
+  ml-service-python:
+    build:
+      context: ./ml_service
+      dockerfile: Dockerfile
+    container_name: motion-ml-service
+    ports:
+      - "8000:8000"
+    restart: always
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    depends_on:
+      - redis-queue
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - motion-network
+
+  # 4. Go Backend (Echo Framework)
+  backend-go:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: motion-backend-go
+    ports:
+      - "8080:8080"
+    restart: always
+    env_file:
+      - ./backend/.env
+    environment:
+      - DB_HOST=aws-1-ap-south-1.pooler.supabase.com
+      - REDIS_HOST=redis-queue
+      - REDIS_PORT=6379
+      - ML_SERVICE_URL=http://ml-service-python:8000
+      - SMTP_HOST=mailpit
+      - SMTP_PORT=1025
+      - HERMES_INTERNAL_SECRET=${HERMES_INTERNAL_SECRET:-}
+    volumes:
+      - backend_uploads:/app/public/downloads
+    depends_on:
+      redis-queue:
+        condition: service_started
+      ml-service-python:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - motion-network
+
+  # 5. Next.js Frontend
+  frontend-next:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: motion-frontend-next
+    ports:
+      - "3000:3000"
+    restart: always
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
+    depends_on:
+      backend-go:
+        condition: service_healthy
+    networks:
+      - motion-network
+
+volumes:
+  redis_data:
+  backend_uploads:
+
+networks:
+  motion-network:
+    driver: bridge
