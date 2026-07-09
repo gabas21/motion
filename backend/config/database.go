@@ -110,10 +110,11 @@ func ConnectDB() {
 	result := db.Where("email = ?", adminEmail).First(&adminUser)
 	if result.Error != nil {
 		adminUser = models.User{
-			Email:    adminEmail,
-			Name:     "Admin Motion",
-			Timezone: "Asia/Jakarta",
-			Role:     "admin",
+			Email:         adminEmail,
+			Name:          "Admin Motion",
+			Timezone:      "Asia/Jakarta",
+			Role:          "admin",
+			EmailVerified: true, // Admin seed tidak butuh verifikasi email
 		}
 		if err := adminUser.HashPassword(adminPassword); err == nil {
 			if err := db.Create(&adminUser).Error; err != nil {
@@ -125,18 +126,23 @@ func ConnectDB() {
 			log.Printf("[Admin-Error] Gagal melakukan hash password admin seed: %v", err)
 		}
 	} else {
+		// Selalu enforce email_verified=true dan role=admin untuk akun admin seed
+		db.Model(&adminUser).Updates(map[string]interface{}{
+			"role":           "admin",
+			"email_verified": true,
+		})
 		// Update password if it doesn't match current environment configuration
 		if !adminUser.CheckPassword(adminPassword) {
 			if err := adminUser.HashPassword(adminPassword); err == nil {
 				db.Model(&adminUser).Updates(map[string]interface{}{
-					"password_hash": adminUser.PasswordHash,
-					"role":          "admin",
+					"password_hash":  adminUser.PasswordHash,
+					"role":           "admin",
+					"email_verified": true,
 				})
-				log.Printf("[Admin] Password and role updated for existing super-admin %s.", adminEmail)
+				log.Printf("[Admin] Password, role, and email_verified updated for existing super-admin %s.", adminEmail)
 			}
-		} else if adminUser.Role != "admin" {
-			db.Model(&adminUser).Update("role", "admin")
-			log.Printf("[Admin] Super-admin role enforced for %s.", adminEmail)
+		} else {
+			log.Printf("[Admin] Super-admin role & email_verified enforced for %s.", adminEmail)
 		}
 	}
 
