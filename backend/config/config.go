@@ -46,6 +46,8 @@ type Config struct {
 	TripayPrivateKey     string
 	TripayMerchantCode   string
 	TripayApiURL         string
+	RedisHost            string
+	RedisPort            string
 }
 
 var AppConfig *Config
@@ -137,6 +139,8 @@ func LoadConfig() {
 		TripayPrivateKey:   getEnv("TRIPAY_PRIVATE_KEY", "your-tripay-private-key"),
 		TripayMerchantCode: getEnv("TRIPAY_MERCHANT_CODE", "T12345"),
 		TripayApiURL:       getEnv("TRIPAY_API_URL", "https://tripay.co.id/api-sandbox"),
+		RedisHost:          getEnv("REDIS_HOST", "localhost"),
+		RedisPort:          getEnv("REDIS_PORT", "6379"),
 	}
 
 	// Inisialisasi kunci enkripsi dan JWT secara runtime untuk memecah siklus import

@@ -4,16 +4,17 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { 
   Sparkles, Calendar, Clock, Plus, Zap, CheckCircle2,
   RefreshCw, MessageSquare, BookOpen, GraduationCap,
-  BrainCircuit, ShieldCheck, CheckSquare, CalendarDays
+  BrainCircuit, ShieldCheck, CheckSquare, CalendarDays,
+  Send, Music, Maximize2, Minimize2
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useAnalytics } from '../../hooks/useAnalytics';
 import { useCalendar } from '../../hooks/useCalendar';
 import { useMoodle } from '../../hooks/useMoodle';
 import { useScheduling } from '../../hooks/useScheduling';
+import { useAIChatBridge } from '../../hooks/useAIChatBridge';
 import API from '../../lib/api';
 import { toast } from '../../hooks/useToast';
-import { ZappyBolt } from '../Landing/Mascots';
 import {
   SunIcon,
   MoonIcon,
@@ -807,8 +808,11 @@ export default function OverviewTab({ onNavigateToTab }: OverviewTabProps) {
   const { events, connections, isLoading: calendarLoading, fetchConnections, fetchEvents, syncCalendar } = useCalendar();
   const { status: moodleStatus, upcomingAssignments: moodleAssignments, isLoading: moodleLoading, fetchStatus: fetchMoodleStatus, fetchAssignments: fetchMoodleAssignments, syncNow: syncMoodle } = useMoodle();
   const { triggerAutoSchedule, isLoading: schedulingLoading } = useScheduling();
+  const { openWithContext } = useAIChatBridge();
 
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [miniChatInput, setMiniChatInput] = useState('');
+  const [isSpotifyExpanded, setIsSpotifyExpanded] = useState(false);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [tasksError, setTasksError] = useState<string | null>(null);
   const [syncingCalendarLocal, setSyncingCalendarLocal] = useState(false);
@@ -987,6 +991,13 @@ export default function OverviewTab({ onNavigateToTab }: OverviewTabProps) {
     } finally { setSchedulingAllLocal(false); }
   };
 
+  const handleMiniChatSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!miniChatInput.trim()) return;
+    openWithContext(miniChatInput.trim());
+    setMiniChatInput('');
+  };
+
   const timeGreeting = useMemo(() => {
     const h = new Date().getHours();
     if (h < 11) return 'Selamat Pagi';
@@ -1039,40 +1050,26 @@ export default function OverviewTab({ onNavigateToTab }: OverviewTabProps) {
   // Hex warna aksen utama tema (digunakan untuk inline style)
   const themeAccentHex = theme.accent;  // misal '#FBBF24' (cerah), '#A78BFA' (malam), '#3B82F6' (hujan)
 
-  // Background hero card: gradient tipis dari tema cuaca (bukan putih polos)
-  // Tetap transparan agar border hitam neobrutalism terlihat
-  const heroBg = isDark
-    ? `linear-gradient(135deg, #0e1117 0%, #1a1d2e 100%)`   // malam: gelap navy
-    : theme.bgGradient;                                       // siang: gradient cuaca
-
-  // Warna teks di hero (adaptif: putih di malam/gelap, hitam di siang)
-  const heroText = isDark ? 'text-white' : 'text-black';
-  const heroTextSub = isDark ? 'text-white/70 font-semibold' : 'text-black/60 font-semibold';
-
-  // Warna border atas hero (accent strip) — berubah sesuai cuaca
-  const heroAccentStrip = themeAccentHex;
-
-  // Warna kotak icon cuaca besar
-  const weatherIconBoxBg = isDark
-    ? 'rgba(255,255,255,0.1)'
-    : `${themeAccentHex}40`;  // 25% opacity dari warna aksen
-
-  // Warna progress bar mengikuti aksen tema
+  // Warna progress bar & timeline dot mengikuti aksen tema
   const progressBarColor = themeAccentHex;
-
-  // Warna timeline dot untuk tugas AI
   const timelineTaskDot = themeAccentHex;
 
   if (isLoading && tasks.length === 0) {
     return (
-      <div className="relative w-full space-y-5 animate-pulse">
-        <div className={`${cardBase} p-6 h-40`} />
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-          {[1,2,3,4,5].map(i => <div key={i} className={`${metricCardBase} p-4 h-28`} />)}
+      <div className="relative w-full space-y-5 text-left animate-pulse">
+        <div className="border-3 border-black rounded-2xl p-6 h-36 bg-slate-100" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => <div key={i} className={`${metricCardBase} p-4 h-28`} />)}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          <div className={`lg:col-span-2 ${cardBase} p-5 h-80`} />
-          <div className={`${cardBase} p-5 h-80`} />
+          <div className="lg:col-span-2 space-y-5">
+            <div className={`${cardBase} p-5 h-[360px]`} />
+            <div className={`${cardBase} p-5 h-[180px]`} />
+          </div>
+          <div className="space-y-5">
+            <div className={`${cardBase} p-5 h-[230px]`} />
+            <div className={`${cardBase} p-5 h-[230px]`} />
+          </div>
         </div>
       </div>
     );
@@ -1081,164 +1078,66 @@ export default function OverviewTab({ onNavigateToTab }: OverviewTabProps) {
   return (
     <div className="relative w-full space-y-5 text-left">
       
-      {/* ─── SECTION 1: HERO BANNER (Weather-Adaptive Neobrutalism) ─────────── */}
-      {/* Struktur: border hitam + shadow (neobrutalism) */}
-      {/* Fill: background gradient dari tema cuaca (adaptif) */}
-      <div
-        className="border-3 border-black rounded-2xl shadow-[5px_5px_0px_0px_#000] p-5 md:p-6 relative overflow-hidden"
-        style={{ background: heroBg }}
-      >
-        {/* Accent strip atas — warna berubah sesuai tema cuaca/waktu */}
-        <div className="absolute top-0 left-0 w-full h-2" style={{ background: heroAccentStrip }} />
-        
-        {/* Partikel cuaca — opacity lebih terlihat agar suasana terasa */}
-        <div className={`absolute inset-0 pointer-events-none overflow-hidden rounded-2xl ${isDark ? 'opacity-30' : 'opacity-20'}`}>
-          <WeatherParticleCanvas type={theme.particleType} />
-        </div>
-
-        {/* Efek glow sudut kanan (ambient light sesuai tema) */}
-        <div
-          className="absolute top-0 right-0 w-64 h-64 rounded-full pointer-events-none"
-          style={{ background: `radial-gradient(circle, ${themeAccentHex}30 0%, transparent 70%)`, filter: 'blur(32px)' }}
-        />
-
-        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-5 pt-2">
-          {/* Left: Greeting & Weather Info */}
-          <div className="flex-1 space-y-3">
-            {/* Date + Weather Badge row */}
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Badge tanggal: warna aksen tema */}
-              <span
-                className="neo-badge text-[10px] uppercase tracking-wider font-black px-3 py-1"
-                style={{
-                  background: themeAccentHex,
-                  color: isDark ? '#fff' : '#000',
-                  borderColor: isDark ? 'rgba(255,255,255,0.3)' : '#000',
-                }}
-              >
-                <CalendarDays className="w-3 h-3 inline mr-1" />
-                {formattedDate}
-              </span>
-              {/* Badge cuaca: semi-transparan sesuai dark/light */}
-              <span
-                className="neo-badge text-[10px] uppercase tracking-wider font-black px-3 py-1"
-                style={{
-                  background: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.75)',
-                  color: isDark ? '#fff' : '#000',
-                  borderColor: isDark ? 'rgba(255,255,255,0.25)' : '#000',
-                  backdropFilter: 'blur(8px)',
-                }}
-              >
-                <theme.Icon size={14} className="inline mr-1" />
-                {weatherData.loading ? '...' : `${weatherData.temp}°C · ${theme.name}`}
-              </span>
-              <span className={`text-[10px] font-mono font-bold ${isDark ? 'text-white/40' : 'text-black/40'}`}>
-                📍 {weatherData.city}
-              </span>
-            </div>
-
-            {/* Greeting */}
-            <div>
-              <h1
-                className={`text-2xl md:text-3xl font-black leading-tight uppercase tracking-tight ${heroText}`}
-                style={{ letterSpacing: '-1px' }}
-              >
-                {timeGreeting}, {user?.name}! ✨
-              </h1>
-              <p className={`text-xs font-semibold leading-relaxed mt-1.5 max-w-xl ${heroTextSub}`}>
-                <Sparkles className="w-3.5 h-3.5 inline-block mr-1 opacity-80" />
-                <strong className={heroText}>Rekomendasi AI:</strong> {theme.recommendation}{' '}
-                {taskCounts.pending > 0
-                  ? `Kamu punya ${taskCounts.pending} tugas pending — yuk selesaikan!`
-                  : 'Semua tugas selesai! Luar biasa, nikmati waktu luangmu.'}
-              </p>
-            </div>
-
-            {/* Task progress bar — warna aksen tema */}
-            <div className="max-w-sm">
-              <div className="flex justify-between items-center mb-1.5">
-                <span className={`text-[10px] font-black uppercase tracking-wider ${heroTextSub}`}>Progres Tugas</span>
-                <span className={`text-[10px] font-black font-mono ${heroText}`}>{taskCounts.completed}/{taskCounts.total} · {taskCounts.ratio}%</span>
-              </div>
-              <div
-                className="w-full h-3 rounded-full overflow-hidden border-2"
-                style={{ borderColor: isDark ? 'rgba(255,255,255,0.3)' : '#000', background: isDark ? 'rgba(255,255,255,0.08)' : '#fff' }}
-              >
-                <div
-                  className="h-full transition-all duration-700 rounded-full"
-                  style={{
-                    width: `${taskCounts.ratio}%`,
-                    background: progressBarColor,
-                    borderRight: taskCounts.ratio > 0 && taskCounts.ratio < 100 ? `2px solid ${isDark ? 'rgba(255,255,255,0.4)' : '#000'}` : 'none',
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Right: Weather Icon — kotak berwarna aksen tema */}
-          <div className="flex items-center gap-4 shrink-0">
-            <div
-              className="p-4 rounded-2xl border-3 border-black shadow-[4px_4px_0px_0px_#000] flex items-center justify-center"
-              style={{
-                background: weatherIconBoxBg,
-                borderColor: isDark ? 'rgba(255,255,255,0.3)' : '#000',
-              }}
-            >
-              <theme.Icon size={64} />
-            </div>
+      {/* ─── SECTION 1: HEADER & GREETING (Minimalist & Clean) ─── */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pt-1">
+        <div>
+          <h1 className="text-2xl md:text-3.5xl font-black uppercase tracking-tight text-black flex items-center gap-2">
+            {timeGreeting}, {user?.name || 'Misionaris'}! ✨
+          </h1>
+          <div className="flex flex-wrap items-center gap-2 mt-1.5">
+            <span className="neo-badge text-[10px] uppercase tracking-wider font-black px-2.5 py-0.5 bg-neoYellow border-2 border-black shadow-[1.5px_1.5px_0px_0px_#000] text-black">
+              <CalendarDays className="w-3.5 h-3.5 inline mr-1 text-black" />
+              {formattedDate}
+            </span>
+            <span className="neo-badge text-[10px] uppercase tracking-wider font-black px-2.5 py-0.5 bg-neoCream border-2 border-black shadow-[1.5px_1.5px_0px_0px_#000] text-black">
+              <theme.Icon size={14} className="inline mr-1 text-black animate-pulse" />
+              {weatherData.loading ? '...' : `${weatherData.temp}°C · ${theme.name}`}
+            </span>
+            <span className="text-[10px] font-mono font-bold text-black/50">
+              📍 {weatherData.city}
+            </span>
           </div>
         </div>
       </div>
 
-      {/* ─── SECTION 2: METRIC CARDS (Neobrutalism, icon bg adaptif) ─────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        
-        {/* Graduation Risk */}
-        <div 
-          className={`${metricCardBase} p-3.5 flex flex-col gap-3 hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_#000] transition-all`}
-          title={analyticsData?.mlMetrics?.graduationRisk?.description || "Indeks risiko kelulusan tepat waktu berdasarkan keaktifan WeLearn."}
-        >
-          <div className="flex justify-between items-start">
-            <span className="text-[10px] font-black uppercase tracking-wider text-black/60">Risiko Akademik</span>
-            {/* Icon badge warna aksen tema */}
-            <div className="p-1.5 rounded-lg border border-black" style={{ background: themeAccentHex }}>
-              <GraduationCap className="w-3.5 h-3.5" style={{ color: isDark ? '#fff' : '#000' }} />
-            </div>
-          </div>
-          <div>
-            <h3 className="text-2xl font-black leading-none text-black">
-              {analyticsData?.mlMetrics?.graduationRisk?.score != null 
-                ? `${analyticsData.mlMetrics.graduationRisk.score.toFixed(0)}%`
-                : '10%'
-              }
-            </h3>
-          </div>
-          <p className="text-[9px] font-semibold truncate text-black/60">
-            Status: <span className={
-              analyticsData?.mlMetrics?.graduationRisk?.status === 'High'
-                ? 'text-rose-500 font-extrabold'
-                : analyticsData?.mlMetrics?.graduationRisk?.status === 'Moderate'
-                ? 'text-amber-500 font-extrabold'
-                : 'text-emerald-500 font-extrabold'
-            }>
-              {analyticsData?.mlMetrics?.graduationRisk?.status === 'High' ? 'Bahaya (High)' : analyticsData?.mlMetrics?.graduationRisk?.status === 'Moderate' ? 'Waspada (Mod)' : 'Aman (Low)'}
-            </span>
-          </p>
+      {/* AI RECOMMENDATION TIP CARD (Glassmorphism, Subtle Weather Backdrop) */}
+      <div 
+        className="relative border-3 border-black rounded-2xl p-4 overflow-hidden shadow-[4px_4px_0px_0px_#000] transition-all hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[5px_5px_0px_0px_#000]"
+        style={{ background: isDark ? 'linear-gradient(135deg, #1e1b4b 0%, #311042 100%)' : theme.bgGradient }}
+      >
+        <div className="absolute inset-0 pointer-events-none opacity-20 overflow-hidden">
+          <WeatherParticleCanvas type={theme.particleType} />
         </div>
+        <div className="relative z-10 flex gap-3 items-center">
+          <div className="w-10 h-10 rounded-xl bg-white border-2 border-black flex items-center justify-center shadow-[2px_2px_0px_0px_#000] shrink-0">
+            <Sparkles className="w-5 h-5 text-neoOrange" />
+          </div>
+          <div className="flex-1 text-left">
+            <span className="text-[9px] font-black uppercase tracking-wider text-black/50 block">Rekomendasi AI Harian</span>
+            <p className={`text-xs font-bold leading-snug ${isDark ? 'text-white' : 'text-black'}`}>
+              {theme.recommendation}{' '}
+              {taskCounts.pending > 0
+                ? `Kamu memiliki ${taskCounts.pending} tugas tertunda. Yuk selesaikan sambil mendengarkan musik fokus!`
+                : 'Luar biasa! Semua tugas harianmu selesai. Santai dulu dan nikmati harimu.'}
+            </p>
+          </div>
+        </div>
+      </div>
 
-        {/* Productivity Score */}
-        <div className={`${metricCardBase} p-3.5 flex flex-col gap-3 hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_#000] transition-all`}>
+      {/* ─── SECTION 2: CORE METRICS GRID (4 Cards) ─── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Productivity Score */}
+        <div className={`${metricCardBase} p-4 flex flex-col justify-between hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[5px_5px_0px_0px_#000] transition-all`}>
           <div className="flex justify-between items-start">
             <span className="text-[10px] font-black uppercase tracking-wider text-black/60">Skor Produktivitas</span>
-            <div className="p-1.5 rounded-lg border border-black" style={{ background: `${themeAccentHex}80` }}>
-              <Zap className="w-3.5 h-3.5 text-black" />
+            <div className="p-1.5 rounded-lg border border-black" style={{ background: themeAccentHex }}>
+              <Zap className="w-3.5 h-3.5" style={{ color: isDark ? '#fff' : '#000' }} />
             </div>
           </div>
-          <div>
+          <div className="my-2">
             <h3 className="text-2xl font-black leading-none text-black">
               {analyticsData?.summary?.productivityScore.toFixed(1) || '8.5'}
-              <span className="text-[11px] font-bold ml-1 text-black/60">/10</span>
+              <span className="text-xs font-bold ml-1 text-black/60">/10</span>
             </h3>
           </div>
           <button
@@ -1251,39 +1150,93 @@ export default function OverviewTab({ onNavigateToTab }: OverviewTabProps) {
           </button>
         </div>
 
-        {/* Task Progress */}
-        <div
-          className={`${metricCardBase} p-3.5 flex flex-col gap-3 hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_#000] transition-all cursor-pointer`}
-          onClick={() => onNavigateToTab('list')}
-        >
+        {/* Card 2: Circular Progress */}
+        <div className={`${metricCardBase} p-4 flex flex-col justify-between hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[5px_5px_0px_0px_#000] transition-all cursor-pointer`} onClick={() => onNavigateToTab('list')}>
           <div className="flex justify-between items-start">
-            <span className="text-[10px] font-black uppercase tracking-wider text-black/60">Penyelesaian Tugas</span>
-            <div className="p-1.5 rounded-lg bg-neoViolet border border-black">
-              <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+            <span className="text-[10px] font-black uppercase tracking-wider text-black/60">Progres Tugas</span>
+            <div className="p-1.5 rounded-lg bg-neoMint border border-black">
+              <CheckCircle2 className="w-3.5 h-3.5 text-black" />
             </div>
           </div>
-          <div>
-            <h3 className="text-2xl font-black leading-none text-black">
-              {taskCounts.completed}
-              <span className="text-[11px] font-bold ml-1 text-black/60">/ {taskCounts.total}</span>
-            </h3>
+          <div className="flex items-center gap-3 my-1">
+            <div className="relative w-12 h-12 shrink-0">
+              <svg className="w-full h-full transform -rotate-90">
+                <circle
+                  cx="24"
+                  cy="24"
+                  r="18"
+                  className="stroke-slate-100"
+                  strokeWidth="4.5"
+                  fill="transparent"
+                />
+                <circle
+                  cx="24"
+                  cy="24"
+                  r="18"
+                  stroke={themeAccentHex}
+                  strokeWidth="4.5"
+                  fill="transparent"
+                  strokeDasharray={2 * Math.PI * 18}
+                  strokeDashoffset={2 * Math.PI * 18 * (1 - taskCounts.ratio / 100)}
+                  strokeLinecap="round"
+                />
+              </svg>
+              <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black font-mono text-black">
+                {taskCounts.ratio}%
+              </span>
+            </div>
+            <div className="text-left min-w-0">
+              <h3 className="text-lg font-black leading-none text-black truncate">
+                {taskCounts.completed} <span className="text-xs font-bold text-black/60">Selesai</span>
+              </h3>
+              <p className="text-[9px] font-semibold text-black/60 mt-1">Dari {taskCounts.total} tugas</p>
+            </div>
           </div>
-          {/* Progress bar task — warna aksen tema */}
-          <div className="w-full h-2.5 rounded-full overflow-hidden border-2 border-black bg-white">
+          <div className="w-full h-1.5 rounded-full overflow-hidden border border-black bg-white">
             <div
               className="h-full rounded-full"
               style={{
                 width: `${taskCounts.ratio}%`,
                 background: progressBarColor,
-                borderRight: taskCounts.ratio > 0 && taskCounts.ratio < 100 ? '2px solid #000' : 'none'
               }}
             />
           </div>
         </div>
 
-        {/* Today's Agenda */}
-        <div
-          className={`${metricCardBase} p-3.5 flex flex-col gap-3 hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_#000] transition-all cursor-pointer`}
+        {/* Card 3: Academic / WeLearn */}
+        <div 
+          className={`${metricCardBase} p-4 flex flex-col justify-between hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[5px_5px_0px_0px_#000] transition-all cursor-pointer`}
+          onClick={() => onNavigateToTab('welearn')}
+        >
+          <div className="flex justify-between items-start">
+            <span className="text-[10px] font-black uppercase tracking-wider text-black/60">Akademik & LMS</span>
+            <div className="p-1.5 rounded-lg bg-neoViolet border border-black">
+              <GraduationCap className="w-3.5 h-3.5 text-white" />
+            </div>
+          </div>
+          <div className="my-2">
+            <h3 className="text-2xl font-black leading-none text-black">
+              {moodleAssignments.filter(a => a.submissionStatus !== 'submitted').length}
+              <span className="text-xs font-bold ml-1 text-black/60">Tugas LMS</span>
+            </h3>
+          </div>
+          <div className="flex items-center justify-between text-[9px] font-semibold text-black/60">
+            <span>Risiko Kelulusan:</span>
+            <span className={
+              analyticsData?.mlMetrics?.graduationRisk?.status === 'High'
+                ? 'text-rose-500 font-extrabold'
+                : analyticsData?.mlMetrics?.graduationRisk?.status === 'Moderate'
+                ? 'text-amber-500 font-extrabold'
+                : 'text-emerald-500 font-extrabold'
+            }>
+              {analyticsData?.mlMetrics?.graduationRisk?.status === 'High' ? 'Tinggi' : analyticsData?.mlMetrics?.graduationRisk?.status === 'Moderate' ? 'Sedang' : 'Rendah'}
+            </span>
+          </div>
+        </div>
+
+        {/* Card 4: Agenda Hari Ini */}
+        <div 
+          className={`${metricCardBase} p-4 flex flex-col justify-between hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[5px_5px_0px_0px_#000] transition-all cursor-pointer`}
           onClick={() => onNavigateToTab('calendar')}
         >
           <div className="flex justify-between items-start">
@@ -1292,259 +1245,242 @@ export default function OverviewTab({ onNavigateToTab }: OverviewTabProps) {
               <Calendar className="w-3.5 h-3.5 text-white" />
             </div>
           </div>
-          <div>
+          <div className="my-2">
             <h3 className="text-2xl font-black leading-none text-black">
               {todayAgenda.length}
-              <span className="text-[11px] font-bold ml-1 text-black/60">Jadwal</span>
+              <span className="text-xs font-bold ml-1 text-black/60">Jadwal</span>
             </h3>
           </div>
-          <p className="text-[9px] font-semibold truncate text-black/60">
+          <p className="text-[9px] font-semibold truncate text-black/60 text-left">
             {nextAgendaItem ? `Next: ${nextAgendaItem.title}` : 'Tidak ada jadwal tersisa.'}
           </p>
         </div>
+      </div>
 
-        {/* Sync Status */}
-        <div className={`${metricCardBase} p-3.5 flex flex-col gap-2.5 hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_#000] transition-all`}>
-          <div className="flex justify-between items-start">
-            <span className="text-[10px] font-black uppercase tracking-wider text-black/60">Sinkronisasi</span>
-            <div className="p-1.5 rounded-lg bg-neoOrange border border-black">
-              <ShieldCheck className="w-3.5 h-3.5 text-white" />
-            </div>
-          </div>
-          <div className="space-y-2 mt-1">
-            <div className="flex items-center justify-between gap-1.5">
-              <div className="flex items-center gap-1.5">
-                <div className={`w-2 h-2 rounded-none border border-black ${connections.length > 0 ? 'bg-neoMint' : 'bg-rose-400'}`} />
-                <span className="text-[10px] font-bold text-black">Kalender</span>
-              </div>
-              <button
-                onClick={handleSyncCalendar}
-                disabled={syncingCalendarLocal}
-                className={`text-[8px] font-black px-2 py-0.5 rounded border transition-all cursor-pointer ${btnPrimary}`}
+      {/* ─── SECTION 3: TWO-COLUMN MAIN LAYOUT ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        
+        {/* KOLOM KIRI: Linimasa & Deadline WeLearn (2/3 Lebar) */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Timeline Agenda Harian */}
+          <div className={`${cardBase} p-5 flex flex-col`} style={{ minHeight: '360px' }}>
+            <div className="flex justify-between items-center mb-4 shrink-0 pb-3 border-b-2 border-black">
+              <h2 className="text-sm font-black flex items-center gap-2 text-black uppercase tracking-wider">
+                <Clock className="w-4 h-4" /> Linimasa Agenda Hari Ini
+              </h2>
+              <span
+                className="neo-badge text-[9px] font-mono font-black px-2.5 py-1"
+                style={{ background: themeAccentHex, color: isDark ? '#fff' : '#000', borderColor: '#000' }}
               >
-                <RefreshCw className={`w-2.5 h-2.5 inline ${syncingCalendarLocal ? 'animate-spin' : ''}`} /> Sync
-              </button>
+                {todayAgenda.length} Kegiatan
+              </span>
             </div>
-            <div className="flex items-center justify-between gap-1.5">
-              <div className="flex items-center gap-1.5">
-                <div className={`w-2 h-2 rounded-none border border-black ${moodleStatus?.isConnected ? 'bg-neoMint' : 'bg-rose-400'}`} />
-                <span className="text-[10px] font-bold text-black">WeLearn</span>
-              </div>
-              {moodleStatus?.isConnected ? (
-                <button
-                  onClick={handleSyncMoodle}
-                  disabled={syncingMoodleLocal}
-                  className={`text-[8px] font-black px-2 py-0.5 rounded border transition-all cursor-pointer ${btnPrimary}`}
-                >
-                  <RefreshCw className={`w-2.5 h-2.5 inline ${syncingMoodleLocal ? 'animate-spin' : ''}`} /> Sync
-                </button>
+
+            <div className="flex-1 overflow-y-auto pr-1">
+              {todayAgenda.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center py-10">
+                  <h4 className="font-black text-xs mt-3 text-black uppercase">Tidak Ada Agenda Terjadwal</h4>
+                  <p className="text-[10px] font-semibold max-w-xs mx-auto mt-1 mb-3 text-black/60">
+                    Semua tugas telah selesai dikerjakan atau belum dialokasikan oleh AI.
+                  </p>
+                  <button
+                    onClick={() => onNavigateToTab('list')}
+                    className={`text-xxs font-black px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${btnPrimary}`}
+                  >
+                    Buat Tugas Baru <Plus className="w-3 h-3 inline ml-0.5" />
+                  </button>
+                </div>
               ) : (
-                <button
-                  onClick={() => onNavigateToTab('integrations')}
-                  className={`text-[8px] font-black px-2 py-0.5 rounded border transition-all cursor-pointer ${btnPrimary}`}
-                >
-                  Connect!
-                </button>
+                <div className="relative border-l-3 border-black pl-5 ml-4 py-1 space-y-4 text-left">
+                  {todayAgenda.map((item) => {
+                    const isTask = item.type === 'task';
+                    const startStr = new Date(item.startTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                    const endStr = new Date(item.endTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                    return (
+                      <div key={item.id} className="relative group">
+                        {/* Dot timeline stepper */}
+                        <div
+                          className="absolute -left-[24.5px] top-2.5 w-3.5 h-3.5 border-2 border-black rounded-full z-10 transition-all group-hover:scale-125"
+                          style={{ backgroundColor: isTask ? timelineTaskDot : '#8B5CF6' }}
+                        />
+                        <div className="bg-white border-2 border-black shadow-[2px_2px_0px_0px_#000] rounded-xl p-3 flex items-center justify-between gap-3 transition-all hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_0px_#000]">
+                          <div className="space-y-1 flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-mono text-[9px] font-black px-1.5 py-0.5 bg-neoCream border border-black rounded text-black">
+                                {startStr} – {endStr}
+                              </span>
+                              <span
+                                className="text-[8px] font-black uppercase px-1.5 py-0.5 border border-black rounded"
+                                style={{
+                                  backgroundColor: isTask ? timelineTaskDot : '#8B5CF6',
+                                  color: isTask ? (isDark ? '#fff' : '#000') : '#fff',
+                                }}
+                              >
+                                {isTask ? 'Tugas AI' : 'Event'}
+                              </span>
+                            </div>
+                            <h3 className="font-black text-xs truncate text-black">{item.title}</h3>
+                          </div>
+                          {isTask && (
+                            <button
+                              onClick={() => handleToggleTaskComplete(item.id, item.status || 'pending')}
+                              className="w-8 h-8 rounded-lg border-2 border-black flex items-center justify-center transition-all cursor-pointer shrink-0 bg-white shadow-[2px_2px_0px_0px_#000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_0px_#000]"
+                              onMouseEnter={e => (e.currentTarget.style.background = `${themeAccentHex}40`)}
+                              onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
+                            >
+                              <CheckSquare className="w-4 h-4 text-black" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
           </div>
-        </div>
 
-        {/* Quota & Plan Widget */}
-        <QuotaWidget onPlanUpgraded={() => window.location.reload()} />
-      </div>
-
-      {/* ─── SECTION 3: TIMELINE + CONTROL PANEL (Neobrutalism) ─────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        
-        {/* Timeline Agenda */}
-        <div className={`lg:col-span-2 ${cardBase} p-5 flex flex-col`} style={{ minHeight: '360px', maxHeight: '420px' }}>
-          <div className="flex justify-between items-center mb-4 shrink-0 pb-3 border-b-2 border-black">
-            <h2 className="text-sm font-black flex items-center gap-2 text-black uppercase tracking-wider">
-              <Clock className="w-4 h-4" /> Linimasa Agenda Hari Ini
-            </h2>
-            {/* Badge kegiatan — warna aksen tema */}
-            <span
-              className="neo-badge text-[9px] font-mono font-black px-2.5 py-1"
-              style={{ background: themeAccentHex, color: isDark ? '#fff' : '#000', borderColor: '#000' }}
-            >
-              {todayAgenda.length} Kegiatan
-            </span>
-          </div>
-
-          <div className="flex-1 overflow-y-auto pr-1 space-y-2.5">
-            {todayAgenda.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center py-8">
-                <ZappyBolt size={52} speechBubble="Hari santai! ⚡" bubblePosition="right" />
-                <h4 className="font-black text-xs mt-3 text-black uppercase">Tidak Ada Agenda Terjadwal</h4>
-                <p className="text-[10px] font-semibold max-w-xs mx-auto mt-1 mb-3 text-black/60">
-                  Semua tugas telah dikerjakan atau belum dialokasikan AI.
-                </p>
-                <button
-                  onClick={() => onNavigateToTab('list')}
-                  className={`text-xxs font-black px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${btnPrimary}`}
-                >
-                  Buat Tugas Baru <Plus className="w-3 h-3 inline ml-0.5" />
-                </button>
-              </div>
-            ) : (
-              <div className="relative border-l-3 border-black pl-4 ml-3 space-y-2.5">
-                {todayAgenda.map((item) => {
-                  const isTask = item.type === 'task';
-                  const startStr = new Date(item.startTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-                  const endStr = new Date(item.endTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-                  return (
-                    <div key={item.id} className="relative group">
-                      {/* Dot timeline — warna aksen tema untuk task, violet untuk event */}
-                      <div
-                        className="absolute -left-[22px] top-2 w-3 h-3 border-2 border-black shadow-[1px_1px_0px_0px_#000] z-10 transition-all group-hover:scale-125"
-                        style={{ backgroundColor: isTask ? timelineTaskDot : '#8B5CF6' }}
-                      />
-                      <div className="bg-white border-2 border-black shadow-[2px_2px_0px_0px_#000] rounded-xl p-3 transition-all group-hover:translate-x-[-1px] group-hover:translate-y-[-1px] group-hover:shadow-[3px_3px_0px_0px_#000] flex items-center justify-between gap-3">
-                        <div className="space-y-0.5 flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="font-mono text-[9px] font-black px-1.5 py-0.5 bg-neoCream border border-black rounded text-black">
-                              {startStr} – {endStr}
-                            </span>
-                            {/* Badge tipe — task pakai warna aksen tema */}
-                            <span
-                              className="text-[8px] font-black uppercase px-1.5 py-0.5 border border-black rounded"
-                              style={{
-                                backgroundColor: isTask ? timelineTaskDot : '#8B5CF6',
-                                color: isTask ? (isDark ? '#fff' : '#000') : '#fff',
-                              }}
-                            >
-                              {isTask ? 'Tugas AI' : 'Event'}
-                            </span>
-                          </div>
-                          <h3 className="font-black text-xs truncate text-black">{item.title}</h3>
-                        </div>
-                        {isTask && (
-                          <button
-                            onClick={() => handleToggleTaskComplete(item.id, item.status || 'pending')}
-                            className="w-9 h-9 rounded-lg border-2 border-black flex items-center justify-center transition-all cursor-pointer shrink-0 bg-white shadow-[2px_2px_0px_0px_#000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_0px_#000]"
-                            style={{ ['--hover-bg' as string]: themeAccentHex }}
-                            onMouseEnter={e => (e.currentTarget.style.background = `${themeAccentHex}60`)}
-                            onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
-                          >
-                            <CheckSquare className="w-4 h-4 text-black" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Right Panel: AI Control + WeLearn */}
-        <div className="space-y-4 flex flex-col" style={{ minHeight: '360px' }}>
-          {/* AI Control Center */}
-          <div className={`${cardBase} p-4 flex flex-col gap-3 flex-1`}>
-            <h3 className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5 pb-2.5 border-b-2 border-black text-black">
-              {/* Icon badge warna aksen tema */}
-              <div className="p-1 border border-black rounded" style={{ background: themeAccentHex }}>
-                <Zap className="w-3.5 h-3.5" style={{ color: isDark ? '#fff' : '#000' }} />
-              </div>
-              Pusat Kendali AI
-            </h3>
-            <div className="flex flex-col gap-2 flex-1 justify-center">
-              {/* Tombol utama hover pakai aksen tema */}
-              <button
-                onClick={() => onNavigateToTab('list')}
-                className="w-full text-xs py-2.5 px-3 font-black rounded-xl border-2 border-black transition-all flex items-center justify-center gap-1.5 cursor-pointer bg-white shadow-[2px_2px_0px_0px_#000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_0px_#000] text-black"
-                onMouseEnter={e => (e.currentTarget.style.background = `${themeAccentHex}80`)}
-                onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
-              >
-                <Plus className="w-4 h-4" /> Tambah Misi Baru!
-              </button>
-              <button
-                onClick={() => {
-                  const el = document.getElementById('chat-widget-input');
-                  if (el) el.focus();
-                  else toast.info('Asisten AI siap di pojok kanan bawah!');
-                }}
-                className="w-full text-xs py-2.5 px-3 font-black rounded-xl border-2 border-black transition-all flex items-center justify-center gap-1.5 cursor-pointer bg-white shadow-[2px_2px_0px_0px_#000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_0px_#000] text-black"
-                onMouseEnter={e => (e.currentTarget.style.background = `${themeAccentHex}50`)}
-                onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
-              >
-                <MessageSquare className="w-4 h-4" /> Tanya AI Asisten
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-2 pt-2.5 border-t-2 border-black">
-              <button
-                onClick={() => onNavigateToTab('excuse-letter')}
-                className={`text-[10px] py-2 px-2 font-black rounded-xl border-2 border-black cursor-pointer transition-all bg-white hover:bg-neoPink hover:text-white shadow-[2px_2px_0px_0px_#000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_0px_#000] text-black`}
-              >
-                📄 Surat Izin
-              </button>
-              <button
-                onClick={() => onNavigateToTab('preferences')}
-                className={`text-[10px] py-2 px-2 font-black rounded-xl border-2 border-black cursor-pointer transition-all bg-white hover:bg-neoViolet hover:text-white shadow-[2px_2px_0px_0px_#000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_0px_#000] text-black`}
-              >
-                ⚙️ Preferensi
-              </button>
-            </div>
-          </div>
-
-          {/* WeLearn Peek */}
-          <div className={`${cardBase} p-4 flex flex-col`} style={{ height: '175px' }}>
-            <div className="flex justify-between items-center mb-2.5 pb-2 border-b-2 border-black shrink-0">
-              <h3 className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5 text-black">
-                {/* Icon badge warna aksen tema */}
-                <div className="p-1 border border-black rounded" style={{ background: themeAccentHex }}>
-                  <BookOpen className="w-3.5 h-3.5" style={{ color: isDark ? '#fff' : '#000' }} />
-                </div>
-                WeLearn Terdekat
+          {/* WeLearn Peek Card */}
+          <div className={`${cardBase} p-5 flex flex-col`} style={{ minHeight: '180px' }}>
+            <div className="flex justify-between items-center mb-3 pb-2 border-b-2 border-black shrink-0">
+              <h3 className="text-sm font-black uppercase tracking-wider flex items-center gap-1.5 text-black">
+                <BookOpen className="w-4 h-4" /> Tugas WeLearn Terdekat
               </h3>
             </div>
-            <div className="flex-1 overflow-y-auto space-y-1.5">
+            <div className="flex-1 overflow-y-auto space-y-2">
               {!moodleStatus?.isConnected ? (
-                <div className="h-full flex flex-col items-center justify-center text-center">
-                  <p className="text-[9px] font-semibold mb-2 text-black/60">Hubungkan WeLearn untuk sinkron otomatis.</p>
+                <div className="h-full flex flex-col items-center justify-center text-center py-4">
+                  <p className="text-[10px] font-semibold mb-2 text-black/60">Hubungkan akun WeLearn LMS Anda untuk sinkronisasi otomatis.</p>
                   <button
                     onClick={() => onNavigateToTab('integrations')}
-                    className={`text-[9px] font-black px-2.5 py-1 rounded-lg border-2 border-black cursor-pointer transition-all bg-white hover:bg-neoOrange hover:text-white shadow-[2px_2px_0px_0px_#000] text-black`}
+                    className={`text-[9px] font-black px-3 py-1.5 rounded-lg border-2 border-black cursor-pointer transition-all bg-white hover:bg-neoOrange hover:text-white shadow-[2px_2px_0px_0px_#000] text-black`}
                   >
                     Hubungkan WeLearn
                   </button>
                 </div>
               ) : upcomingWeLearn.length === 0 ? (
-                <div className="h-full flex items-center justify-center">
-                  <p className="text-[10px] font-semibold flex items-center gap-1.5 text-black/60">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> Semua tugas WeLearn aman!
+                <div className="h-full flex items-center justify-center py-6">
+                  <p className="text-xs font-semibold flex items-center gap-1.5 text-black/60">
+                    <CheckCircle2 className="w-4.5 h-4.5 text-emerald-500 shrink-0" /> Hore! Semua tugas WeLearn Anda aman.
                   </p>
                 </div>
               ) : (
-                upcomingWeLearn.map((assign) => (
-                  <div key={assign.id} className="bg-white border-2 border-black rounded-lg shadow-[2px_2px_0px_0px_#000] p-2 flex items-center justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <span className="text-[8px] font-mono font-bold block truncate text-black/60">
-                        {assign.courseName.split('_').pop()?.replace(/_/g, ' ')}
-                      </span>
-                      <h4 className="font-extrabold text-[10px] truncate text-black">{assign.name}</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {upcomingWeLearn.map((assign) => (
+                    <div key={assign.id} className="bg-white border-2 border-black rounded-xl shadow-[2px_2px_0px_0px_#000] p-3 flex items-center justify-between gap-2 text-left">
+                      <div className="min-w-0 flex-1">
+                        <span className="text-[8px] font-mono font-bold block truncate text-black/50">
+                          {assign.courseName.split('_').pop()?.replace(/_/g, ' ')}
+                        </span>
+                        <h4 className="font-black text-xs truncate text-black mt-0.5">{assign.name}</h4>
+                      </div>
+                      <div className="shrink-0 flex flex-col items-end gap-1.5">
+                        <span className="text-[8px] font-mono font-bold text-black/60">
+                          {assign.dueDate ? new Date(assign.dueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : 'No Date'}
+                        </span>
+                        <a
+                          href={assign.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center text-[8px] font-black px-2 py-0.5 rounded border-2 border-black cursor-pointer transition-all bg-white hover:bg-neoOrange hover:text-white shadow-[1px_1px_0px_0px_#000] text-black"
+                        >
+                          LMS ↗
+                        </a>
+                      </div>
                     </div>
-                    <div className="shrink-0 flex flex-col items-end gap-1">
-                      <span className="text-[8px] font-mono font-bold text-black/60">
-                        {assign.dueDate ? new Date(assign.dueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : 'No Date'}
-                      </span>
-                      <a
-                        href={assign.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center text-[8px] font-black px-1.5 py-0.5 rounded border-2 border-black cursor-pointer transition-all bg-white hover:bg-neoOrange hover:text-white shadow-[1px_1px_0px_0px_#000] text-black"
-                      >
-                        LMS ↗
-                      </a>
-                    </div>
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
             </div>
           </div>
         </div>
+
+        {/* KOLOM KANAN: Spotify Player, AI Assistant & Quota (1/3 Lebar) */}
+        <div className="lg:col-span-1 space-y-6">
+          {/* Spotify Focus Player Embed */}
+          <div className={`${cardBase} p-5 flex flex-col gap-3.5`}>
+            <div className="flex justify-between items-center pb-2.5 border-b-2 border-black">
+              <h3 className="text-xs font-black uppercase tracking-wider flex items-center gap-2 text-black">
+                <Music className="w-4 h-4 text-black animate-bounce" /> Spotify Focus Player
+              </h3>
+              <button
+                onClick={() => setIsSpotifyExpanded(!isSpotifyExpanded)}
+                className="p-1 rounded border-2 border-black bg-white hover:bg-slate-50 text-black shadow-[1.5px_1.5px_0px_0px_#000] active:translate-x-[0.5px] active:translate-y-[0.5px] active:shadow-none hover:translate-x-[-0.5px] hover:translate-y-[-0.5px] hover:shadow-[2px_2px_0px_0px_#000] transition-all cursor-pointer flex items-center justify-center"
+                title={isSpotifyExpanded ? 'Perkecil Player' : 'Perbesar Player'}
+              >
+                {isSpotifyExpanded ? (
+                  <Minimize2 className="w-3.5 h-3.5 stroke-[2.5]" />
+                ) : (
+                  <Maximize2 className="w-3.5 h-3.5 stroke-[2.5]" />
+                )}
+              </button>
+            </div>
+            <div className="rounded-xl overflow-hidden border-2 border-black shadow-[3px_3px_0px_0px_#000]">
+              <iframe
+                src="https://open.spotify.com/embed/playlist/37i9dQZF1DWWQRwui0ExPn?utm_source=generator&theme=0"
+                width="100%"
+                height={isSpotifyExpanded ? "380" : "152"}
+                frameBorder="0"
+                allowFullScreen={false}
+                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                loading="lazy"
+                className="w-full transition-all duration-300"
+              />
+            </div>
+            <p className="text-[9px] font-bold text-black/50 text-center leading-snug px-1">
+              Putar musik Lofi Beats atau ambient ini untuk membantumu tetap rileks dan berkonsentrasi tinggi.
+            </p>
+          </div>
+
+          {/* AI Control Center & Quick Chat */}
+          <div className={`${cardBase} p-5 flex flex-col gap-4`}>
+            <h3 className="text-xs font-black uppercase tracking-wider flex items-center gap-2 pb-2.5 border-b-2 border-black text-black">
+              <div className="p-1 border border-black rounded" style={{ background: themeAccentHex }}>
+                <Zap className="w-3.5 h-3.5" style={{ color: isDark ? '#fff' : '#000' }} />
+              </div>
+              Pusat Kendali AI
+            </h3>
+
+            {/* Quick Interactive Chat Input */}
+            <form onSubmit={handleMiniChatSubmit} className="space-y-2 text-left">
+              <label className="text-[9px] font-black text-black/60 uppercase tracking-wider block">Tanya Asisten AI</label>
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  placeholder="Ketik tugas / tanya AI di sini..."
+                  value={miniChatInput}
+                  onChange={(e) => setMiniChatInput(e.target.value)}
+                  className="w-full border-2 border-black rounded-xl pl-3 pr-10 py-2.5 text-xs font-bold bg-white focus:outline-none focus:ring-0 text-black animate-none"
+                />
+                <button
+                  type="submit"
+                  className="absolute right-1.5 p-1.5 rounded-lg border border-black bg-white hover:bg-slate-100 transition-colors cursor-pointer text-black"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </form>
+
+            <div className="grid grid-cols-2 gap-2.5 pt-2 border-t-2 border-black">
+              <button
+                onClick={() => onNavigateToTab('list')}
+                className="text-[10px] py-2 px-2 font-black rounded-xl border-2 border-black cursor-pointer transition-all bg-white hover:bg-neoYellow shadow-[2px_2px_0px_0px_#000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_0px_#000] text-black text-center"
+              >
+                🚀 Tambah Tugas
+              </button>
+              <button
+                onClick={() => onNavigateToTab('excuse-letter')}
+                className="text-[10px] py-2 px-2 font-black rounded-xl border-2 border-black cursor-pointer transition-all bg-white hover:bg-neoPink hover:text-white shadow-[2px_2px_0px_0px_#000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_0px_#000] text-black text-center"
+              >
+                📄 Surat Izin
+              </button>
+            </div>
+          </div>
+
+          {/* Quota & Plan Widget */}
+          <QuotaWidget onPlanUpgraded={() => window.location.reload()} />
+        </div>
+
       </div>
 
     </div>

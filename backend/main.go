@@ -15,6 +15,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -109,11 +110,15 @@ func main() {
 		}
 
 		// 2. Check Redis via TCP ping
-		redisHost := "localhost"
-		if config.AppConfig.ServerEnv == "production" {
-			redisHost = "redis-queue"
+		redisHost := config.AppConfig.RedisHost
+		redisPort := config.AppConfig.RedisPort
+		if redisHost == "" {
+			redisHost = "localhost"
 		}
-		connRedis, errRedis := net.DialTimeout("tcp", net.JoinHostPort(redisHost, "6379"), 1*time.Second)
+		if redisPort == "" {
+			redisPort = "6379"
+		}
+		connRedis, errRedis := net.DialTimeout("tcp", net.JoinHostPort(redisHost, redisPort), 1*time.Second)
 		if errRedis != nil {
 			res.Redis = "unhealthy"
 			if res.Status != "unhealthy" {
@@ -125,10 +130,23 @@ func main() {
 
 		// 3. Check ML Service via TCP ping
 		mlHost := "localhost"
-		if config.AppConfig.ServerEnv == "production" {
-			mlHost = "ml-service-python"
+		mlPort := "8000"
+		u, errParse := url.Parse(config.AppConfig.MLServiceURL)
+		if errParse == nil {
+			host, port, errSplit := net.SplitHostPort(u.Host)
+			if errSplit == nil {
+				mlHost = host
+				mlPort = port
+			} else {
+				mlHost = u.Host
+				if u.Scheme == "https" {
+					mlPort = "443"
+				} else {
+					mlPort = "80"
+				}
+			}
 		}
-		connML, errML := net.DialTimeout("tcp", net.JoinHostPort(mlHost, "8000"), 1*time.Second)
+		connML, errML := net.DialTimeout("tcp", net.JoinHostPort(mlHost, mlPort), 1*time.Second)
 		if errML != nil {
 			res.MLService = "unhealthy"
 			if res.Status != "unhealthy" {

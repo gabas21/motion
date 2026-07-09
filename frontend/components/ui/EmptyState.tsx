@@ -1,13 +1,6 @@
 'use client';
 
 import React from 'react';
-import { 
-  ZappyBolt, 
-  MotiClock, 
-  KofiMug, 
-  StarrySparkle, 
-  CloudyCalm 
-} from '@/components/Landing/Mascots';
 
 interface EmptyStateProps {
   mascot: 'zappy' | 'clock' | 'mug' | 'star' | 'cloud';
@@ -30,37 +23,8 @@ export default function EmptyState({
   secondaryAction,
   speechBubble,
 }: EmptyStateProps) {
-  // Map mascot string to components
-  const renderMascot = () => {
-    const props = {
-      size: 110,
-      speechBubble: speechBubble,
-      bubblePosition: 'top' as const,
-      className: 'transform group-hover:rotate-6 transition-transform duration-300'
-    };
-
-    switch (mascot) {
-      case 'zappy':
-        return <ZappyBolt {...props} />;
-      case 'clock':
-        return <MotiClock {...props} />;
-      case 'mug':
-        return <KofiMug {...props} />;
-      case 'star':
-        return <StarrySparkle {...props} />;
-      case 'cloud':
-        return <CloudyCalm {...props} />;
-      default:
-        return <ZappyBolt {...props} />;
-    }
-  };
-
   return (
     <div className="flex flex-col items-center justify-center p-8 text-center bg-white border-3 border-black shadow-neo rounded-2xl max-w-lg mx-auto my-6 animate-fadeInUp">
-      {/* Mascot Section */}
-      <div className="mb-6 group">
-        {renderMascot()}
-      </div>
 
       {/* Text Info */}
       <h3 className="text-xl font-black text-black mb-2 tracking-tight">

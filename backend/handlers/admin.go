@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"time"
@@ -82,32 +83,50 @@ func GetAdminStats(c echo.Context) error {
 	}
 
 	mlHealth := "unhealthy"
-	// Parse host and port from MLServiceURL
-	// e.g. "http://localhost:8000" or "http://ml-service-python:8000"
 	mlHost := "localhost"
 	mlPort := "8000"
-	if config.AppConfig.ServerEnv == "production" {
-		mlHost = "ml-service-python"
+	u, errParse := url.Parse(config.AppConfig.MLServiceURL)
+	if errParse == nil {
+		host, port, errSplit := net.SplitHostPort(u.Host)
+		if errSplit == nil {
+			mlHost = host
+			mlPort = port
+		} else {
+			mlHost = u.Host
+			if u.Scheme == "https" {
+				mlPort = "443"
+			} else {
+				mlPort = "80"
+			}
+		}
 	}
 	if pingTCP(mlHost, mlPort) {
 		mlHealth = "healthy"
 	}
 
 	redisHealth := "unhealthy"
-	redisHost := "localhost"
-	if config.AppConfig.ServerEnv == "production" {
-		redisHost = "redis-queue"
+	redisHost := config.AppConfig.RedisHost
+	redisPort := config.AppConfig.RedisPort
+	if redisHost == "" {
+		redisHost = "localhost"
 	}
-	if pingTCP(redisHost, "6379") {
+	if redisPort == "" {
+		redisPort = "6379"
+	}
+	if pingTCP(redisHost, redisPort) {
 		redisHealth = "healthy"
 	}
 
 	mailpitHealth := "unhealthy"
-	mailpitHost := "localhost"
-	if config.AppConfig.ServerEnv == "production" {
-		mailpitHost = "mailpit"
+	mailpitHost := config.AppConfig.SMTPHost
+	mailpitPort := config.AppConfig.SMTPPort
+	if mailpitHost == "" {
+		mailpitHost = "localhost"
 	}
-	if pingTCP(mailpitHost, "1025") {
+	if mailpitPort == "" {
+		mailpitPort = "1025"
+	}
+	if pingTCP(mailpitHost, mailpitPort) {
 		mailpitHealth = "healthy"
 	}
 

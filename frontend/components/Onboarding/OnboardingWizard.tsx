@@ -4,11 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useScheduling } from '@/hooks/useScheduling';
 import CustomSelect from '@/components/ui/CustomSelect';
-import { 
-  MotiClock, 
-  ZappyBolt, 
-  StarrySparkle 
-} from '@/components/Landing/Mascots';
 import { Clock, Coffee, Sparkles, Check, ArrowRight, ArrowLeft, Loader, Globe } from 'lucide-react';
 
 interface OnboardingWizardProps {
@@ -231,8 +226,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
 
           {/* ── STEP 2: Work Hours Preference ─────────────────────────────── */}
           {step === 2 && (
-            <div className="w-full flex flex-col items-center animate-fadeIn">
-              <ZappyBolt size={110} speechBubble="Kita set jam kerja & istirahatmu yuk!" bubblePosition="top" className="mb-6" />
+            <div className="w-full flex flex-col items-center animate-fadeIn mt-6">
               
               <h2 className="text-2xl font-black text-black text-center mb-2">
                 Atur Jam Kerja &amp; Waktu Produktif
