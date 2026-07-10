@@ -2,11 +2,11 @@ package services
 
 import (
 	"fmt"
-	"log"
 	"net/smtp"
 	"time"
 
 	"github.com/motion/backend/config"
+	"github.com/motion/backend/pkg/logger"
 )
 
 // SendVerificationEmail sends email with verification link
@@ -256,10 +256,10 @@ func sendEmail(to, subject, body string) error {
 
 	err := smtp.SendMail(smtpHost+":"+smtpPort, auth, from, []string{to}, msg)
 	if err != nil {
-		log.Printf("SMTP Auth Service: Gagal mengirim email ke %s: %v", to, err)
+		logger.Error("SendEmail: Gagal mengirim email", err, "to", to, "subject", subject)
 		return err
 	}
 
-	log.Printf("SMTP Auth Service: Sukses mengirim email ke %s dengan subjek '%s'", to, subject)
+	logger.Info("SendEmail: Sukses mengirim email", "to", to, "subject", subject)
 	return nil
 }

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useScheduling } from '@/hooks/useScheduling';
 import CustomSelect from '@/components/ui/CustomSelect';
+import { MotiClock, StarrySparkle } from '@/components/Landing/Mascots';
 import { Clock, Coffee, Sparkles, Check, ArrowRight, ArrowLeft, Loader, Globe } from 'lucide-react';
 
 interface OnboardingWizardProps {

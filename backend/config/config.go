@@ -102,6 +102,25 @@ func LoadConfig() {
 		log.Fatalf("CRITICAL SECURITY ERROR: DB_ENCRYPTION_KEY must be at least 32 characters long to ensure cryptographic strength (current length: %d)", len(dbEncryptionKey))
 	}
 
+	if env == "production" && dbEncryptionKey == jwtSecret {
+		log.Fatalf("FATAL: DB_ENCRYPTION_KEY wajib diset terpisah dari JWT_SECRET di production!")
+	}
+
+	smtpHost := getEnv("SMTP_HOST", "localhost")
+	if env == "production" {
+		if smtpHost == "localhost" || smtpHost == "" {
+			log.Fatalf("FATAL: SMTP_HOST belum dikonfigurasi untuk production! Verifikasi email tidak akan berfungsi.")
+		}
+	}
+
+	adminEmail := getEnv("ADMIN_EMAIL", "")
+	adminPass := getEnv("ADMIN_PASSWORD", "")
+	if env == "production" {
+		if adminEmail == "" || adminPass == "" {
+			log.Fatalf("FATAL: ADMIN_EMAIL dan ADMIN_PASSWORD wajib dikonfigurasi di production!")
+		}
+	}
+
 	AppConfig = &Config{
 		ServerPort:         getEnv("SERVER_PORT", "8080"),
 		ServerEnv:          env,
@@ -115,7 +134,7 @@ func LoadConfig() {
 		GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
 		GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
 		FrontendURL:        getEnv("FRONTEND_URL", "http://localhost:3000"),
-		SMTPHost:           getEnv("SMTP_HOST", "localhost"),
+		SMTPHost:           smtpHost,
 		SMTPPort:           getEnv("SMTP_PORT", "1025"),
 		SMTPUser:           getEnv("SMTP_USER", ""),
 		SMTPPassword:       getEnv("SMTP_PASSWORD", ""),
@@ -132,8 +151,8 @@ func LoadConfig() {
 		HermesInternalSecret:  getEnv("HERMES_INTERNAL_SECRET", ""),
 		DbEncryptionKey:       dbEncryptionKey,
 		WeatherAPIKey:        getEnv("WEATHER_API_KEY", ""),
-		AdminEmail:         getEnv("ADMIN_EMAIL", "bagasa020@gmail.com"),
-		AdminPassword:      getEnv("ADMIN_PASSWORD", "AdminMotion2026!"),
+		AdminEmail:         adminEmail,
+		AdminPassword:      adminPass,
 		SentryDSN:          getEnv("SENTRY_DSN", ""),
 		TripayApiKey:       getEnv("TRIPAY_API_KEY", "DEV-your-tripay-api-key"),
 		TripayPrivateKey:   getEnv("TRIPAY_PRIVATE_KEY", "your-tripay-private-key"),

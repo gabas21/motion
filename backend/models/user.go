@@ -27,6 +27,7 @@ type User struct {
 	// Email verification
 	EmailVerified      bool       `gorm:"default:false" json:"emailVerified"`
 	EmailVerifiedAt    *time.Time `json:"emailVerifiedAt,omitempty"`
+	EmailSendFailed    bool       `gorm:"default:false" json:"emailSendFailed"`
 	EmailVerifyToken   string     `gorm:"type:varchar(255);index" json:"-"`
 	EmailVerifyExpires *time.Time `json:"-"`
 	// Password reset

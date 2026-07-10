@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"net/http"
@@ -95,14 +96,20 @@ func Register(c echo.Context) error {
 
 	// Generate verification token
 	token := generateRandomToken()
+	hashedToken := hashToken(token)
 	expiresAt := time.Now().Add(24 * time.Hour)
 	config.DB.Model(&user).Updates(map[string]interface{}{
-		"email_verify_token":   token,
+		"email_verify_token":   hashedToken,
 		"email_verify_expires": expiresAt,
 	})
 
 	// Send verification email
-	go services.SendVerificationEmail(user.Email, user.Name, token)
+	go func() {
+		if err := services.SendVerificationEmail(user.Email, user.Name, token); err != nil {
+			config.DB.Model(&user).Update("email_send_failed", true)
+			logger.Error("Register: Gagal mengirim email verifikasi", err, "email", user.Email)
+		}
+	}()
 
 	return utils.JSONSuccess(c, http.StatusCreated, map[string]interface{}{
 		"message": "Akun berhasil dibuat. Silakan periksa email kamu untuk melakukan verifikasi sebelum masuk.",
@@ -532,16 +539,23 @@ func RequestEmailVerification(c echo.Context) error {
 
 	// Generate token (random 32 bytes hex = 64 chars)
 	token := generateRandomToken()
+	hashedToken := hashToken(token)
 	expiresAt := time.Now().Add(24 * time.Hour)
 
 	// Update user
 	config.DB.Model(&user).Updates(map[string]interface{}{
-		"email_verify_token":   token,
+		"email_verify_token":   hashedToken,
 		"email_verify_expires": expiresAt,
+		"email_send_failed":    false,
 	})
 
 	// Send email
-	go services.SendVerificationEmail(user.Email, user.Name, token)
+	go func() {
+		if err := services.SendVerificationEmail(user.Email, user.Name, token); err != nil {
+			config.DB.Model(&user).Update("email_send_failed", true)
+			logger.Error("RequestEmailVerification: Gagal mengirim email verifikasi", err, "email", user.Email)
+		}
+	}()
 
 	return utils.JSONSuccess(c, http.StatusOK, map[string]string{
 		"message": "Email verifikasi baru telah dikirim. Silakan periksa kotak masuk Anda.",
@@ -560,7 +574,8 @@ func VerifyEmail(c echo.Context) error {
 	var user models.User
 
 	// Find user by token
-	if err := config.DB.Where("email_verify_token = ?", token).First(&user).Error; err != nil {
+	hashedToken := hashToken(token)
+	if err := config.DB.Where("email_verify_token = ?", hashedToken).First(&user).Error; err != nil {
 		return utils.JSONError(c, http.StatusBadRequest, "Token tidak valid atau kedaluwarsa")
 	}
 
@@ -576,6 +591,7 @@ func VerifyEmail(c echo.Context) error {
 		"email_verified_at":     &now,
 		"email_verify_token":    "",
 		"email_verify_expires":  nil,
+		"email_send_failed":     false,
 	})
 
 	utils.LogAuditEvent(user.ID.String(), "EMAIL_VERIFIED", "auth", nil)
@@ -605,15 +621,20 @@ func RequestPasswordReset(c echo.Context) error {
 
 	// Generate token (valid 1 hour)
 	token := generateRandomToken()
+	hashedToken := hashToken(token)
 	expiresAt := time.Now().Add(1 * time.Hour)
 
 	config.DB.Model(&user).Updates(map[string]interface{}{
-		"reset_token":         token,
+		"reset_token":         hashedToken,
 		"reset_token_expires": expiresAt,
 	})
 
 	// Send email
-	go services.SendPasswordResetEmail(user.Email, user.Name, token)
+	go func() {
+		if err := services.SendPasswordResetEmail(user.Email, user.Name, token); err != nil {
+			logger.Error("RequestPasswordReset: Gagal mengirim email reset password", err, "email", user.Email)
+		}
+	}()
 
 	utils.LogAuditEvent(user.ID.String(), "PASSWORD_RESET_REQUESTED", "auth", nil)
 
@@ -638,7 +659,8 @@ func ResetPassword(c echo.Context) error {
 	var user models.User
 
 	// Find user by token
-	if err := config.DB.Where("reset_token = ?", req.Token).First(&user).Error; err != nil {
+	hashedToken := hashToken(req.Token)
+	if err := config.DB.Where("reset_token = ?", hashedToken).First(&user).Error; err != nil {
 		return utils.JSONError(c, http.StatusBadRequest, "Token tidak valid atau kedaluwarsa")
 	}
 
@@ -671,6 +693,12 @@ func generateRandomToken() string {
 	b := make([]byte, 32)
 	rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// Helper: Hash token with SHA-256
+func hashToken(token string) string {
+	h := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(h[:])
 }
 
 
