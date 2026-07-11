@@ -2,11 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Menyembunyikan seluruh ikon UI Lucide di seluruh website */
-.lucide {
-  display: none !important;
-}
-
 :root {
   --background: #F0F6FC; /* Fresh Sky Linen - bright, clean, fun blue-tinted white */
   --foreground: #1D2A44; /* Deep Indigo Charcoal - premium navy black, high readability */
