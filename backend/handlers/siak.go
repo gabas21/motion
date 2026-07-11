@@ -52,10 +52,10 @@ func ConnectSiak(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]any{"success": false, "message": "Gagal mengenkripsi kredensial"})
 	}
 
-	// 3. Simpan atau update akun SIAK di database
+	// 3. Simpan atau update akun SIAK di database (Gunakan Unscoped untuk mendeteksi soft-deleted records)
 	now := time.Now()
 	var account models.SiakAccount
-	err = config.DB.Where("user_id = ?", userID.String()).First(&account).Error
+	err = config.DB.Unscoped().Where("user_id = ?", userID.String()).First(&account).Error
 
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		account = models.SiakAccount{
@@ -71,7 +71,8 @@ func ConnectSiak(c echo.Context) error {
 		account.NIM = req.NIM
 		account.PasswordEncrypted = encryptedPassword
 		account.LastSyncAt = &now
-		if err := config.DB.Save(&account).Error; err != nil {
+		account.DeletedAt = gorm.DeletedAt{} // Clear soft-deleted timestamp (Restore record)
+		if err := config.DB.Unscoped().Save(&account).Error; err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]any{"success": false, "message": "Gagal memperbarui akun SIAK"})
 		}
 	} else {
