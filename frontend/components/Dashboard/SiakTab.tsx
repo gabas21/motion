@@ -25,11 +25,7 @@ export default function SiakTab() {
 	// Tampilkan error jika ada
 	useEffect(() => {
 		if (error) {
-			toast({
-				title: 'Terjadi Kesalahan',
-				description: error,
-				variant: 'destructive',
-			});
+			toast.error(error);
 			clearError();
 		}
 	}, [error, clearError]);
@@ -37,21 +33,13 @@ export default function SiakTab() {
 	const handleConnect = async (e: React.FormEvent) => {
 		e.preventDefault();
 		if (!nim || !password) {
-			toast({
-				title: 'Peringatan',
-				description: 'NIM dan password wajib diisi!',
-				variant: 'warning',
-			});
+			toast.warning('NIM dan password wajib diisi!');
 			return;
 		}
 
 		const success = await connect(nim, password);
 		if (success) {
-			toast({
-				title: 'Koneksi Sukses',
-				description: 'Akun SIAK berhasil terhubung dan nilai berhasil disinkronkan.',
-				variant: 'success',
-			});
+			toast.success('Akun SIAK berhasil terhubung dan nilai berhasil disinkronkan.');
 			setPassword('');
 		}
 	};
@@ -59,11 +47,7 @@ export default function SiakTab() {
 	const handleSync = async () => {
 		const success = await syncNow();
 		if (success) {
-			toast({
-				title: 'Sinkronisasi Sukses',
-				description: 'Data nilai SIAK terbaru berhasil dimuat.',
-				variant: 'success',
-			});
+			toast.success('Data nilai SIAK terbaru berhasil dimuat.');
 		}
 	};
 
@@ -71,11 +55,7 @@ export default function SiakTab() {
 		if (confirm('Apakah Anda yakin ingin memutuskan hubungan akun SIAK dan menghapus semua cache nilai dari sistem?')) {
 			const success = await disconnect();
 			if (success) {
-				toast({
-					title: 'Koneksi Diputuskan',
-					description: 'Akun SIAK berhasil diputus dan cache nilai dihapus.',
-					variant: 'info',
-				});
+				toast.info('Akun SIAK berhasil diputus dan cache nilai dihapus.');
 				setNim('');
 			}
 		}
