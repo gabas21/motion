@@ -109,7 +109,7 @@ func LoadConfig() {
 	smtpHost := getEnv("SMTP_HOST", "localhost")
 	if env == "production" {
 		if smtpHost == "localhost" || smtpHost == "" {
-			log.Fatalf("FATAL: SMTP_HOST belum dikonfigurasi untuk production! Verifikasi email tidak akan berfungsi.")
+			log.Println("[WARNING] SMTP_HOST belum dikonfigurasi untuk production! Fitur pengiriman email (verifikasi, dll) tidak akan berfungsi.")
 		}
 	}
 

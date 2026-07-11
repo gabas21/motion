@@ -122,16 +122,16 @@ export default function SignupPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full neo-input py-3.5 pl-11 pr-11 text-sm"
+                className="w-full neo-input py-3.5 pl-11 pr-12 text-sm"
                 disabled={isLoading}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-black hover:text-black/60 focus:outline-none flex items-center justify-center cursor-pointer"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-black hover:text-black/60 focus:outline-none flex items-center justify-center cursor-pointer z-10 p-1"
                 aria-label={showPassword ? 'Sembunyikan sandi' : 'Tampilkan sandi'}
               >
-                {showPassword ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
           </div>

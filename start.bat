@@ -11,17 +11,31 @@ echo ====================================================
 echo          MOTION APP PREMIUM ORCHESTRATOR
 echo ====================================================
 echo.
-echo [1] Mulai Lingkungan Dev Lokal (Tanpa Docker)
+echo [1] Mulai Lingkungan Dev Lokal (Auto-Stop Docker)
 echo [2] Mulai Lingkungan Docker Dev (Membuka docker-start.bat)
-echo [3] Keluar
+echo [3] Hentikan Semua Layanan Docker (Clean Up Ports)
+echo [4] Keluar
 echo.
-set /p mode_choice="Pilih Mode [1-3]: "
+set /p mode_choice="Pilih Mode [1-4]: "
 
 if "%mode_choice%"=="2" (
     call docker-start.bat
     exit /b 0
 )
 if "%mode_choice%"=="3" (
+    cls
+    echo ====================================================
+    echo        MENGHENTIKAN LAYANAN DOCKER COMPOSE
+    echo ====================================================
+    echo.
+    echo [INFO] Menjalankan 'docker-compose down' untuk membersihkan port...
+    docker-compose down
+    echo.
+    echo [OK] Layanan Docker dihentikan dan port berhasil dibersihkan!
+    pause
+    goto orchestrator_menu
+)
+if "%mode_choice%"=="4" (
     exit /b 0
 )
 if not "%mode_choice%"=="1" (
@@ -119,7 +133,10 @@ echo.
 :: ────────────────────────────────────────────────────────
 :: 2. DETECT & CLEAN PORT CONFLICTS (8080, 3000, 8000, 1025 & 8025)
 :: ────────────────────────────────────────────────────────
-echo [INFO] Memeriksa konflik port...
+echo [INFO] Menghentikan container Docker yang menggunakan port (jika ada)...
+docker-compose down >nul 2>&1
+timeout /t 1 /nobreak >nul
+echo [INFO] Memeriksa konflik port lokal...
 
 :: Check Port 1025 (Mailpit SMTP)
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr :1025 ^| findstr LISTENING') do (
