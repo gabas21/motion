@@ -264,6 +264,13 @@ func main() {
 	moodleGroup.GET("/excuse-letters", moodleHandler.GetExcuseLetters)
 	moodleGroup.DELETE("/excuse-letters/:id", moodleHandler.DeleteExcuseLetter)
 
+	// SIAK Integration Endpoints (Protected)
+	siakGroup := api.Group("/siak", customMiddleware.AuthRequired)
+	siakGroup.POST("/connect", handlers.ConnectSiak)
+	siakGroup.GET("/grades", handlers.GetSiakGrades)
+	siakGroup.POST("/sync", handlers.SyncSiakGrades)
+	siakGroup.DELETE("/disconnect", handlers.DisconnectSiak)
+
 	// WebSocket Real-time Endpoint (Protected)
 	api.GET("/ws", func(c echo.Context) error {
 		userIDVal := c.Get("userId")

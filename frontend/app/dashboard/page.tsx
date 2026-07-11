@@ -70,6 +70,11 @@ const BillingTab = dynamic(() => import('../../components/Dashboard/BillingTab')
 const AIChatWidget = dynamic(() => import('../../components/Dashboard/AIChatWidget'), {
   ssr: false
 });
+
+const SiakTab = dynamic(() => import('../../components/Dashboard/SiakTab'), {
+  loading: () => <SkeletonCard className="h-[600px] animate-pulse" />,
+  ssr: false
+});
 import { FileText } from 'lucide-react';
 import { toast } from '../../hooks/useToast';
 import { ToastContainer } from '../../components/ui/Toast';
@@ -183,7 +188,7 @@ export default function DashboardPage() {
   } = useMoodle();
 
   // State navigasi tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'list' | 'calendar' | 'analytics' | 'integrations' | 'preferences' | 'welearn' | 'excuse-letter' | 'profile' | 'billing'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'list' | 'calendar' | 'analytics' | 'integrations' | 'preferences' | 'welearn' | 'siak' | 'excuse-letter' | 'profile' | 'billing'>('overview');
 
   // Tasks state
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -502,6 +507,7 @@ export default function DashboardPage() {
     { label: 'Daftar Tugas',   ariaLabel: 'Daftar Tugas',           onClick: () => setActiveTab('list') },
     { label: 'Kalender',       ariaLabel: 'Kalender Agenda',        onClick: () => setActiveTab('calendar') },
     { label: 'WeLearn',        ariaLabel: 'Tugas WeLearn',          onClick: () => setActiveTab('welearn') },
+    { label: 'SIAK Wicida',    ariaLabel: 'Portal SIAK Wicida',     onClick: () => setActiveTab('siak') },
     { label: 'Analisis',       ariaLabel: 'Analisis Performa',      onClick: () => setActiveTab('analytics') },
     { label: 'Surat Izin',     ariaLabel: 'Surat Izin Praktikum',   onClick: () => setActiveTab('excuse-letter') },
     { label: 'Integrasi',      ariaLabel: 'Integrasi Kalender',     onClick: () => setActiveTab('integrations') },
@@ -558,6 +564,13 @@ export default function DashboardPage() {
           {activeTab === 'welearn' && (
             <div className="max-w-6xl mx-auto">
               <WeLearnTab onNavigateToSettings={() => setActiveTab('integrations')} />
+            </div>
+          )}
+
+          {/* Render Tab SIAK Wicida */}
+          {activeTab === 'siak' && (
+            <div className="max-w-6xl mx-auto">
+              <SiakTab />
             </div>
           )}
 

@@ -95,6 +95,8 @@ func ConnectDB() {
 		&models.UserUsage{},
 		&models.AuditLog{},    // Audit trail untuk semua aksi penting
 		&models.Subscription{}, // Detail & riwayat transaksi langganan
+		&models.SiakAccount{}, // Akun SIAK yang terhubung
+		&models.SiakGrade{},   // Cache nilai SIAK
 	)
 	if err != nil {
 		log.Fatalf("Failed to run database migrations: %v", err)
