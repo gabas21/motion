@@ -13,6 +13,19 @@ export default function GlobalError({
 }) {
   React.useEffect(() => {
     console.error('Frontend runtime error captured:', error);
+
+    // Otomatis reload halaman jika terdeteksi ChunkLoadError (aset javascript lama yang di-cache browser)
+    const isChunkError = 
+      error.message && (
+        error.message.includes('Loading chunk') || 
+        error.message.includes('Failed to fetch') ||
+        error.message.includes('dynamically imported module')
+      );
+
+    if (isChunkError) {
+      console.warn('ChunkLoadError terdeteksi! Memaksa reload halaman otomatis...');
+      window.location.reload();
+    }
   }, [error]);
 
   return (
