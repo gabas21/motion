@@ -187,68 +187,88 @@ type AIChatInput struct {
 }
 
 // AIChatKeys menyimpan API Key yang siap dipakai untuk satu request chat
+var (
+	ErrNoAPIKeyRegistered   = fmt.Errorf("no_key_registered")
+	ErrAPIKeyInvalidOrQuota = fmt.Errorf("key_invalid_or_quota")
+)
+
 type AIChatKeys struct {
 	GeminiKey     string
 	GroqKey       string
 	OpenRouterKey string
+	HasValidKey   bool
+	Reason        string // "no_key_registered" | ""
 }
 
-// fetchUserKeys mengambil kunci milik user dari DB. Jika tidak ada, fallback ke config sistem.
+// fetchUserKeys mengambil kunci milik user dari DB. Untuk non-admin, wajib memiliki kunci kustom terverifikasi (BYOK).
 func fetchUserKeys(userIDStr string) AIChatKeys {
-	// Default: gunakan kunci sistem dari .env
-	keys := AIChatKeys{
-		GeminiKey:     config.AppConfig.GeminiAPIKey,
-		GroqKey:       config.AppConfig.GroqAPIKey,
-		OpenRouterKey: config.AppConfig.OpenRouterAPIKey,
-	}
-
 	userUUID, err := uuid.Parse(userIDStr)
-	if err != nil {
-		return keys
+	var user models.User
+	isPrivileged := false
+	if err == nil && config.DB != nil {
+		if err := config.DB.Select("id", "role").First(&user, "id = ?", userUUID).Error; err == nil {
+			isPrivileged = user.IsPrivileged()
+		}
 	}
 
-	if config.DB == nil {
-		return keys
+	enforceBYOK := true
+	if config.AppConfig != nil {
+		enforceBYOK = config.AppConfig.EnforceBYOKForNonAdmin
+	}
+	isBYOKEnforced := enforceBYOK && !isPrivileged
+
+	keys := AIChatKeys{
+		HasValidKey: false,
+		Reason:      "no_key_registered",
 	}
 
-	var userCfg models.UserAIConfig
-	if err := config.DB.Where("user_id = ?", userUUID).First(&userCfg).Error; err != nil {
-		return keys // Tidak ada konfigurasi user → pakai sistem
-	}
-
-	if userCfg.EncryptedGeminiKey != "" {
-		decrypted, err := utils.DecryptWithSalt(userCfg.EncryptedGeminiKey, userUUID.String())
-		if err == nil && decrypted != "" {
-			keys.GeminiKey = decrypted
-		} else {
-			decryptedOld, errOld := utils.DecryptPassword(userCfg.EncryptedGeminiKey)
-			if errOld == nil && decryptedOld != "" {
-				keys.GeminiKey = decryptedOld
+	// 1. Coba ambil custom key dari DB terlebih dahulu
+	if err == nil && config.DB != nil {
+		var userCfg models.UserAIConfig
+		if err := config.DB.Where("user_id = ?", userUUID).First(&userCfg).Error; err == nil {
+			if userCfg.EncryptedGeminiKey != "" && userCfg.GeminiIsValid {
+				decrypted, err := utils.DecryptWithSalt(userCfg.EncryptedGeminiKey, userUUID.String())
+				if err == nil && decrypted != "" {
+					keys.GeminiKey = decrypted
+					keys.HasValidKey = true
+				}
+			}
+			if userCfg.EncryptedGroqKey != "" && userCfg.GroqIsValid {
+				decrypted, err := utils.DecryptWithSalt(userCfg.EncryptedGroqKey, userUUID.String())
+				if err == nil && decrypted != "" {
+					keys.GroqKey = decrypted
+					keys.HasValidKey = true
+				}
+			}
+			if userCfg.EncryptedORKey != "" && userCfg.ORIsValid {
+				decrypted, err := utils.DecryptWithSalt(userCfg.EncryptedORKey, userUUID.String())
+				if err == nil && decrypted != "" {
+					keys.OpenRouterKey = decrypted
+					keys.HasValidKey = true
+				}
 			}
 		}
 	}
-	if userCfg.EncryptedGroqKey != "" {
-		decrypted, err := utils.DecryptWithSalt(userCfg.EncryptedGroqKey, userUUID.String())
-		if err == nil && decrypted != "" {
-			keys.GroqKey = decrypted
-		} else {
-			decryptedOld, errOld := utils.DecryptPassword(userCfg.EncryptedGroqKey)
-			if errOld == nil && decryptedOld != "" {
-				keys.GroqKey = decryptedOld
-			}
+
+	// 2. Jika user adalah admin atau BYOK tidak di-enforce, fallback ke system key jika key user belum ada
+	if !isBYOKEnforced {
+		if keys.GeminiKey == "" {
+			keys.GeminiKey = config.AppConfig.GeminiAPIKey
 		}
-	}
-	if userCfg.EncryptedORKey != "" {
-		decrypted, err := utils.DecryptWithSalt(userCfg.EncryptedORKey, userUUID.String())
-		if err == nil && decrypted != "" {
-			keys.OpenRouterKey = decrypted
-		} else {
-			decryptedOld, errOld := utils.DecryptPassword(userCfg.EncryptedORKey)
-			if errOld == nil && decryptedOld != "" {
-				keys.OpenRouterKey = decryptedOld
-			}
+		if keys.GroqKey == "" {
+			keys.GroqKey = config.AppConfig.GroqAPIKey
 		}
+		if keys.OpenRouterKey == "" {
+			keys.OpenRouterKey = config.AppConfig.OpenRouterAPIKey
+		}
+		if keys.GeminiKey != "" || keys.GroqKey != "" || keys.OpenRouterKey != "" {
+			keys.HasValidKey = true
+			keys.Reason = ""
+		}
+	} else if keys.HasValidKey {
+		keys.Reason = ""
 	}
+
 	return keys
 }
 
@@ -420,6 +440,9 @@ func AskAsep(input AIChatInput) (string, error) {
 	}
 
 	keys := fetchUserKeys(input.UserID)
+	if !keys.HasValidKey {
+		return "", ErrNoAPIKeyRegistered
+	}
 
 	// Auto-load riwayat dari DB jika frontend tidak mengirim history.
 	// Ini memungkinkan Asep mengingat percakapan dari sesi sebelumnya.

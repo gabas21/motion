@@ -170,14 +170,30 @@ export function PhysicsCanvas({ count, color }: PhysicsCanvasProps) {
         ctx.stroke();
       });
 
+      if (document.hidden || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        return;
+      }
+
       animationFrameId = requestAnimationFrame(update);
     };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        cancelAnimationFrame(animationFrameId);
+      } else {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = requestAnimationFrame(update);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     update();
 
     return () => {
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', resize);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (parent) {
         parent.removeEventListener('mousemove', handleMouseMove);
         parent.removeEventListener('mouseleave', handleMouseLeave);
@@ -431,14 +447,30 @@ export function SyncPhysicsCanvas({
         ctx.stroke();
       });
 
+      if (document.hidden || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        return;
+      }
+
       animationFrameId = requestAnimationFrame(update);
     };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        cancelAnimationFrame(animationFrameId);
+      } else {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = requestAnimationFrame(update);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     update();
 
     return () => {
       cancelAnimationFrame(animationFrameId);
       resizeObserver.disconnect();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (parent) {
         parent.removeEventListener('mousemove', handleMouseMove);
         parent.removeEventListener('mouseleave', handleMouseLeave);

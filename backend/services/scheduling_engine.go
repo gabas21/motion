@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"strconv"
 	"strings"
@@ -81,6 +82,43 @@ func (s *SchedulingEngine) ScheduleTask(ctx context.Context, task *models.Task) 
 	var meetings []models.CalendarEvent
 	if err := config.DB.Where("user_id = ? AND end_time >= ? AND start_time <= ?", task.UserID.String(), now, maxSearchDate).Find(&meetings).Error; err != nil {
 		return err
+	}
+
+	// 3b. SIAK Exam Awareness: Ambil jadwal ujian SIAK mendekat dan masukkan sebagai waktu sibuk
+	var siakExams []models.SiakExam
+	if err := config.DB.Where("user_id = ? AND tanggal_ujian IS NOT NULL AND tanggal_ujian >= ?", task.UserID.String(), now).Find(&siakExams).Error; err == nil {
+		for _, ex := range siakExams {
+			if ex.TanggalUjian == nil {
+				continue
+			}
+			var startH, startM, endH, endM int
+			fmt.Sscanf(ex.JamMulai, "%d:%d", &startH, &startM)
+			fmt.Sscanf(ex.JamSelesai, "%d:%d", &endH, &endM)
+
+			exStart := time.Date(ex.TanggalUjian.Year(), ex.TanggalUjian.Month(), ex.TanggalUjian.Day(), startH, startM, 0, 0, time.Local)
+			exEnd := time.Date(ex.TanggalUjian.Year(), ex.TanggalUjian.Month(), ex.TanggalUjian.Day(), endH, endM, 0, 0, time.Local)
+
+			if exEnd.Before(exStart) || exEnd.Equal(exStart) {
+				exEnd = exStart.Add(2 * time.Hour)
+			}
+
+			// Tambahkan slot waktu ujian SIAK sebagai slot sibuk agar tidak tertimpa task lain
+			meetings = append(meetings, models.CalendarEvent{
+				Title:       fmt.Sprintf("[UJIAN SIAK %s] %s", ex.JenisUjian, ex.NamaMatkul),
+				StartTime:   exStart,
+				EndTime:     exEnd,
+				IsBusy:      true,
+			})
+
+			// Jika judul task mengandung nama/kode matkul atau kata "belajar/persiapan/ujian", batasi maxSearchDate sebelum tanggal ujian
+			taskTitleLower := strings.ToLower(task.Title)
+			matkulLower := strings.ToLower(ex.NamaMatkul)
+			kodeLower := strings.ToLower(ex.KodeMatkul)
+
+			if (strings.Contains(taskTitleLower, matkulLower) || (kodeLower != "" && strings.Contains(taskTitleLower, kodeLower)) || strings.Contains(taskTitleLower, "ujian") || strings.Contains(taskTitleLower, "belajar")) && exStart.Before(maxSearchDate) {
+				maxSearchDate = exStart
+			}
+		}
 	}
 
 	var otherTasks []models.Task

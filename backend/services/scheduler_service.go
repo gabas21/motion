@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -26,6 +27,21 @@ func StartReminderScheduler() {
 func ScanAndSendReminders() {
 	if config.DB == nil {
 		return
+	}
+
+	// 1. Dapatkan Distributed Lock via Redis jika tersedia
+	if config.IsRedisAvailable() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		// SetNX (Set if Not Exists) untuk lock "lock:reminder:scan" dengan TTL 50 detik
+		success, err := config.RedisClient.SetNX(ctx, "lock:reminder:scan", "1", 50*time.Second).Result()
+		if err != nil {
+			log.Printf("Scheduler: Gagal berinteraksi dengan Redis untuk lock: %v. Fallback menjalankan tanpa lock.", err)
+		} else if !success {
+			// Lock sudah dipegang oleh instance lain, lewati eksekusi kali ini
+			return
+		}
 	}
 
 	var tasks []models.Task

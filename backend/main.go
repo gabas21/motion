@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
+	"golang.org/x/time/rate"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -55,6 +56,7 @@ func main() {
 
 	// 2. Connect to Database & Run Migrations
 	config.ConnectDB()
+	config.ConnectRedis()
 
 	// Inisialisasi Asep AI Agent (Singleton — hanya sekali saat startup)
 	services.InitAsepAgent()
@@ -65,6 +67,9 @@ func main() {
 	services.StartLongPolling()
 	services.StartWeLearnCronSync()         // Auto-sync WeLearn terjadwal setiap 2 jam dengan semaphore
 	services.StartWeLearnDeadlineNotifier() // Pemindaian deadline WeLearn setiap 30 menit
+	services.StartSubscriptionExpiryWorker() // Auto-downgrade & expiry cron untuk langganan/payment
+	services.StartSiakExamNotifier()        // Pemindaian pengingat UTS/UAS SIAK Wicida ke Telegram
+	services.StartSiakCronSync()            // Auto-sync SIAK berkala setiap 12 jam & notifikasi nilai baru
 
 	// 3. Create Echo Instance
 	e := echo.New()
@@ -109,23 +114,34 @@ func main() {
 			res.Status = "unhealthy"
 		}
 
-		// 2. Check Redis via TCP ping
-		redisHost := config.AppConfig.RedisHost
-		redisPort := config.AppConfig.RedisPort
-		if redisHost == "" {
-			redisHost = "localhost"
-		}
-		if redisPort == "" {
-			redisPort = "6379"
-		}
-		connRedis, errRedis := net.DialTimeout("tcp", net.JoinHostPort(redisHost, redisPort), 1*time.Second)
-		if errRedis != nil {
-			res.Redis = "unhealthy"
-			if res.Status != "unhealthy" {
-				res.Status = "degraded"
+		// 2. Check Redis via Redis client PING (fallback to TCP ping)
+		if config.IsRedisAvailable() {
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			if err := config.RedisClient.Ping(ctx).Err(); err != nil {
+				res.Redis = "unhealthy"
+				if res.Status != "unhealthy" {
+					res.Status = "degraded"
+				}
 			}
+			cancel()
 		} else {
-			connRedis.Close()
+			redisHost := config.AppConfig.RedisHost
+			redisPort := config.AppConfig.RedisPort
+			if redisHost == "" {
+				redisHost = "localhost"
+			}
+			if redisPort == "" {
+				redisPort = "6379"
+			}
+			connRedis, errRedis := net.DialTimeout("tcp", net.JoinHostPort(redisHost, redisPort), 1*time.Second)
+			if errRedis != nil {
+				res.Redis = "unhealthy"
+				if res.Status != "unhealthy" {
+					res.Status = "degraded"
+				}
+			} else {
+				connRedis.Close()
+			}
 		}
 
 		// 3. Check ML Service via TCP ping
@@ -170,12 +186,26 @@ func main() {
 	api := e.Group("/api/v1")
 
 	// Public Webhook Endpoints
+	paymentWebhookLimiter := middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(30))
 	api.POST("/webhook/telegram", handlers.HandleTelegramWebhook)
-	api.POST("/payment/webhook", handlers.HandleTripayWebhook)
+	api.POST("/payment/webhook", handlers.HandleMidtransWebhook, paymentWebhookLimiter)
+
+	// Helper untuk membuat Rate Limiter dengan JSON response 429 yang informatif
+	createRateLimiter := func(r float64) echo.MiddlewareFunc {
+		return middleware.RateLimiterWithConfig(middleware.RateLimiterConfig{
+			Store: middleware.NewRateLimiterMemoryStore(rate.Limit(r)),
+			ErrorHandler: func(c echo.Context, err error) error {
+				return c.JSON(http.StatusTooManyRequests, map[string]string{
+					"error":   "Too Many Requests",
+					"message": "Terlalu banyak permintaan dalam waktu singkat. Silakan tunggu beberapa saat lagi.",
+				})
+			},
+		})
+	}
 
 	// Authentication Endpoints (Public)
 	// Rate limit: max 10 request/menit per IP untuk mencegah brute force
-	authRateLimiter := middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(10))
+	authRateLimiter := createRateLimiter(10)
 	authGroup := api.Group("/auth")
 	authGroup.POST("/register", handlers.Register, authRateLimiter)
 	authGroup.POST("/login", handlers.Login, customMiddleware.RateLimitLogin(customMiddleware.LoginLimiter))
@@ -183,8 +213,8 @@ func main() {
 	authGroup.POST("/refresh", handlers.RefreshToken)
 
 	// Email verification and password reset routes
-	verifyRateLimiter := middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(3))
-	resetRateLimiter := middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(3))
+	verifyRateLimiter := createRateLimiter(3)
+	resetRateLimiter := createRateLimiter(3)
 	authGroup.POST("/verify-email/request", handlers.RequestEmailVerification, verifyRateLimiter)
 	authGroup.GET("/verify-email", handlers.VerifyEmail)
 	authGroup.POST("/request-password-reset", handlers.RequestPasswordReset, resetRateLimiter)
@@ -226,22 +256,31 @@ func main() {
 
 	// AI Core Engine Chat Endpoints (Protected)
 	// Rate limit: max 3 request/menit per IP untuk mencegah abuse AI
-	aiRateLimiter := middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(3))
+	aiRateLimiter := createRateLimiter(3)
 	aiGroup := api.Group("/ai", customMiddleware.AuthRequired)
 	aiGroup.POST("/chat", handlers.HandleAIChat, aiRateLimiter)
 	aiGroup.POST("/documents/upload", handlers.UploadDocument)
 	aiGroup.POST("/documents/generate-docx-direct", handlers.HandleGenerateDocxDirect)
 	aiGroup.GET("/config", handlers.HandleGetAIConfig)
-	aiGroup.PUT("/config", handlers.HandleSaveAIConfig)
+	aiGroup.PUT("/config", handlers.HandleSaveAIKey)
+	aiGroup.DELETE("/config/:provider", handlers.HandleDeleteAIKey)
+
+	profileGroup := api.Group("/profile", customMiddleware.AuthRequired)
+	profileGroup.GET("/ai-config", handlers.HandleGetAIConfig)
+	profileGroup.PUT("/ai-config", handlers.HandleSaveAIKey)
+	profileGroup.DELETE("/ai-config/:provider", handlers.HandleDeleteAIKey)
 
 	// Public AI status & debugging endpoints
 	api.GET("/ai/health", handlers.HandleAIHealth)
 	api.POST("/ai/reset-provider/:name", handlers.HandleResetProvider)
 
 	// Subscription Endpoints (Protected)
+	upgradeRateLimiter := middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(5))
 	subscriptionGroup := api.Group("/subscription", customMiddleware.AuthRequired)
 	subscriptionGroup.GET("/status", handlers.GetSubscriptionStatus)
-	subscriptionGroup.POST("/upgrade", handlers.UpgradeSubscription)
+	subscriptionGroup.POST("/upgrade", handlers.UpgradeSubscription, upgradeRateLimiter)
+	subscriptionGroup.POST("/simulate-pay", handlers.SimulateMidtransPayment)
+	subscriptionGroup.GET("/history", handlers.GetSubscriptionHistory)
 
 	// Analytics Endpoints (Protected)
 	analyticsGroup := api.Group("/analytics", customMiddleware.AuthRequired)
@@ -270,6 +309,12 @@ func main() {
 	siakGroup.GET("/grades", handlers.GetSiakGrades)
 	siakGroup.POST("/sync", handlers.SyncSiakGrades)
 	siakGroup.DELETE("/disconnect", handlers.DisconnectSiak)
+	siakGroup.GET("/schedule", handlers.GetSiakSchedule)
+	siakGroup.GET("/exams", handlers.GetSiakExams)
+	siakGroup.POST("/sync-schedule", handlers.SyncSiakSchedule)
+	siakGroup.POST("/sync-exams", handlers.SyncSiakExams)
+	siakGroup.GET("/export/transcript.pdf", handlers.ExportSiakTranscriptPDF)
+	siakGroup.GET("/export/schedule.ics", handlers.ExportSiakScheduleICS)
 
 	// WebSocket Real-time Endpoint (Protected)
 	api.GET("/ws", func(c echo.Context) error {
@@ -294,6 +339,19 @@ func main() {
 	adminGroup.DELETE("/users/:id", handlers.AdminDeleteUser)
 	adminGroup.GET("/activity", handlers.GetSystemActivity)
 	adminGroup.GET("/audit-logs", handlers.GetAuditLogs) // Audit trail lengkap dengan filter
+	adminGroup.GET("/ai-keys", handlers.GetAdminAIKeys)
+	adminGroup.POST("/ai-keys/validate/:userId/:provider", handlers.ValidateUserAIKeyAdmin)
+	adminGroup.DELETE("/ai-keys/:userId/:provider", handlers.DeleteUserAIKeyAdmin)
+
+	// Zero-Trust User Live Inspector & Command Center
+	adminGroup.GET("/users/:id/inspect", handlers.InspectUser360)
+	adminGroup.GET("/users/:id/timeline", handlers.GetUserTimeline)
+	adminGroup.POST("/users/:id/sessions/:sessionId/evict", handlers.EvictUserSession)
+	adminGroup.POST("/users/:id/evict-all-sessions", handlers.EvictAllUserSessions)
+	adminGroup.PUT("/users/:id/override-data", handlers.OverrideUserDataAdmin)
+	adminGroup.POST("/users/:id/api-keys/:provider/reveal", handlers.RevealUserAPIKeyAdmin)
+	adminGroup.GET("/admin-audit-logs", handlers.GetAdminAuditLogs)
+	adminGroup.GET("/command-center/overview", handlers.GetMasterCommandCenterOverview)
 
 	// Internal API — Untuk MCP Server (Hermes Agent) dari dalam Docker network.
 	// Dilindungi X-Internal-Secret header, BUKAN JWT user.

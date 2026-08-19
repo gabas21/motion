@@ -1,31 +1,39 @@
+# Environment files
 backend/.env
+frontend/.env
+frontend/.env.local
 .env
 *.env
+*.env.local
 !*.env.example
+
+# Binaries & Executables
 backend/backend.exe
 backend/backend.exe~
+backend/main.exe
+*.exe
+backend/tmp/
+backend/scratch/
+
+# Dependencies & Build Outputs
 node_modules/
 dist/
 .next/
-.idea/
-.vscode/
-*.log
-
-# Folder backup sementara — gunakan Git branch untuk backup, bukan folder
-*_backup_temp/
-*_backup/
-*_temp_backup/
-
-# File build/cache yang tidak perlu di-commit
 *.tsbuildinfo
 __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
 
-# OS files
+# IDE & OS files
+.idea/
+.vscode/
 .DS_Store
 Thumbs.db
+*.log
+
+# Vercel
+.vercel/
 
 # Virtual Environments
 .venv/
@@ -38,3 +46,22 @@ repomix-output.xml
 *.zip
 *.tar.gz
 *.rar
+
+# Backup folders
+*_backup_temp/
+*_backup/
+*_temp_backup/
+
+# Local scripts & internal tools
+*.bat
+start.bat
+docker-start.bat
+ui-ux-pro-max/
+design-system/
+hermes/
+.agents/
+skills-lock.json
+
+# Internal markdown & blueprints in root
+/*.md
+!README.md

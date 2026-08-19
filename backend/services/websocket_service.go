@@ -1,9 +1,12 @@
 package services
 
 import (
+	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/motion/backend/config"
@@ -48,6 +51,11 @@ func InitWebSocketHub() {
 		Unregister: make(chan *Client),
 	}
 	go WSHub.run()
+
+	// Mulai mendengarkan pesan dari instance lain jika Redis aktif
+	if config.IsRedisAvailable() {
+		go WSHub.subscribeRedisMessages()
+	}
 }
 
 // run mengelola pendaftaran dan pencabutan koneksi secara asinkron
@@ -81,8 +89,34 @@ func (h *WebSocketHub) run() {
 	}
 }
 
-// Broadcast mengirimkan pesan real-time khusus ke semua koneksi browser milik satu user tertentu
+type pubSubBroadcastPayload struct {
+	UserID  string `json:"userId"`
+	Payload []byte `json:"payload"`
+}
+
+// Broadcast mengirimkan pesan real-time khusus ke semua koneksi browser milik satu user tertentu.
+// Jika Redis aktif, ia akan mem-publish pesan ke semua instance cluster.
 func (h *WebSocketHub) Broadcast(userID string, message []byte) {
+	if config.IsRedisAvailable() {
+		payload := pubSubBroadcastPayload{
+			UserID:  userID,
+			Payload: message,
+		}
+		payloadBytes, err := json.Marshal(payload)
+		if err == nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			config.RedisClient.Publish(ctx, "ws:broadcast", payloadBytes)
+			cancel()
+			return
+		}
+	}
+
+	// Fallback ke local broadcast jika Redis tidak aktif
+	h.localBroadcast(userID, message)
+}
+
+// localBroadcast mengirimkan pesan ke koneksi WebSocket yang berada di instance lokal ini saja
+func (h *WebSocketHub) localBroadcast(userID string, message []byte) {
 	h.Mutex.RLock()
 	defer h.Mutex.RUnlock()
 
@@ -100,6 +134,28 @@ func (h *WebSocketHub) Broadcast(userID string, message []byte) {
 				h.Unregister <- c
 			}(client)
 		}
+	}
+}
+
+// subscribeRedisMessages mendengarkan broadcast pesan dari instance lain via Redis Pub/Sub
+func (h *WebSocketHub) subscribeRedisMessages() {
+	ctx := context.Background()
+	pubsub := config.RedisClient.Subscribe(ctx, "ws:broadcast")
+	defer pubsub.Close()
+
+	log.Println("[WebSocket-PubSub] Daemon subscriber Redis diaktifkan.")
+
+	ch := pubsub.Channel()
+	for msg := range ch {
+		var payload pubSubBroadcastPayload
+		err := json.Unmarshal([]byte(msg.Payload), &payload)
+		if err != nil {
+			log.Printf("[WebSocket-PubSub] Gagal memproses payload broadcast: %v", err)
+			continue
+		}
+
+		// Pancarkan ke WebSocket yang terkonek lokal pada instance ini
+		h.localBroadcast(payload.UserID, payload.Payload)
 	}
 }
 

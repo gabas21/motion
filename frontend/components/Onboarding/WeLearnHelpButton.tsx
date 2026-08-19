@@ -29,7 +29,7 @@ export default function WeLearnHelpButton({ onStartTour, onNavigateToSettings }:
   ];
 
   return (
-    <div className="fixed bottom-20 right-4 md:bottom-6 md:right-6 z-[9999] pointer-events-auto flex flex-col items-end gap-3 select-none">
+    <div className="fixed bottom-[140px] right-4 md:bottom-6 md:right-6 z-40 pointer-events-auto flex flex-col items-end gap-3 select-none">
       
       {/* Help Panel */}
       <AnimatePresence>

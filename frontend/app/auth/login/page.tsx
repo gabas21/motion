@@ -16,9 +16,17 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
  
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
   // Bersihkan pesan error saat pertama masuk halaman
   useEffect(() => {
     clearError();
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('registered') === 'true') {
+        setSuccessMessage('Akun berhasil dibuat! Silakan periksa kotak masuk email Anda untuk melakukan verifikasi sebelum masuk.');
+      }
+    }
   }, [clearError]);
 
   // Jika sudah terotentikasi (dan token tervalidasi), alihkan ke dashboard
@@ -73,6 +81,13 @@ export default function LoginPage() {
             ⚠️ {error === 'Login failed. Please check your credentials.' 
               ? 'Gagal masuk. Silakan periksa kembali email & kata sandi Anda.' 
               : error}
+          </div>
+        )}
+
+        {/* Kotak Pesan Sukses */}
+        {successMessage && !error && (
+          <div className="bg-neoMint border-3 border-black text-black text-xs font-bold rounded-xl p-4 mb-6 shadow-neo-sm text-left">
+            🎉 {successMessage}
           </div>
         )}
 

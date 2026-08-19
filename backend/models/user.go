@@ -93,3 +93,14 @@ func (u *User) IsSuspended() bool {
 	// If lock duration is greater than 30 days, we consider it suspended
 	return u.LockedUntil.After(time.Now().AddDate(0, 1, 0))
 }
+
+// IsAdmin checks if the user has an admin role
+func (u *User) IsAdmin() bool {
+	return u.Role == "admin"
+}
+
+// IsPrivileged checks if the user is allowed to use system default keys (admin, superadmin, staff)
+func (u *User) IsPrivileged() bool {
+	return u.Role == "admin" || u.Role == "superadmin" || u.Role == "staff"
+}
+

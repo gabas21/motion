@@ -92,8 +92,9 @@ export default function CustomSelect({
 
       {/* Options Dropdown Menu */}
       {isOpen && (
-        <div className={`absolute left-0 w-full mt-2 bg-white border-black shadow-neo z-50 overflow-hidden divide-y border-t-0 animate-in fade-in slide-in-from-top-1 duration-150
+        <div className={`absolute left-0 w-full mt-2 bg-white border-black shadow-neo z-50 overflow-hidden divide-y border-t-0 origin-top animate-in fade-in-0 zoom-in-95 duration-150
           ${isSmall ? 'border-2 rounded-xl' : 'border-3 rounded-2xl'}`}
+          style={{ transitionTimingFunction: 'var(--ease-out)' }}
         >
           <div className="max-h-60 overflow-y-auto divide-y divide-black/10">
             {options.length === 0 ? (

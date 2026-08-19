@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -32,6 +33,21 @@ func StartWeLearnDeadlineNotifier() {
 func ScanAndSendWeLearnDeadlines() {
 	if config.DB == nil {
 		return
+	}
+
+	// 1. Dapatkan Distributed Lock via Redis jika tersedia
+	if config.IsRedisAvailable() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		// SetNX lock "lock:welearn:deadline" dengan TTL 25 menit (1500 detik)
+		success, err := config.RedisClient.SetNX(ctx, "lock:welearn:deadline", "1", 25*time.Minute).Result()
+		if err != nil {
+			log.Printf("[welearn-notifier] Gagal berinteraksi dengan Redis untuk lock: %v. Fallback menjalankan tanpa lock.", err)
+		} else if !success {
+			// Lock sudah dipegang oleh instance lain
+			return
+		}
 	}
 
 	var tasks []models.Task

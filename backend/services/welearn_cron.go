@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"log"
 	"math/rand"
 	"sync"
@@ -32,6 +33,21 @@ func runWeLearnCronSyncAll() {
 	if config.DB == nil {
 		log.Println("[welearn-cron] Database tidak terhubung. Batalkan sync.")
 		return
+	}
+
+	// 1. Dapatkan Distributed Lock via Redis jika tersedia
+	if config.IsRedisAvailable() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		// SetNX lock "lock:welearn:sync" dengan TTL 1 jam 50 menit (110 menit)
+		success, err := config.RedisClient.SetNX(ctx, "lock:welearn:sync", "1", 110*time.Minute).Result()
+		if err != nil {
+			log.Printf("[welearn-cron] Gagal berinteraksi dengan Redis untuk lock: %v. Fallback menjalankan tanpa lock.", err)
+		} else if !success {
+			// Lock sudah dipegang oleh instance lain
+			return
+		}
 	}
 
 	var connections []models.MoodleConnection

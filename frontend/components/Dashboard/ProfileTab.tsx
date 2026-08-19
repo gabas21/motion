@@ -32,12 +32,13 @@ export default function ProfileTab() {
   const { connections, fetchConnections } = useCalendar();
   const { status: moodleStatus, fetchStatus: fetchMoodleStatus } = useMoodle();
   const { 
-    status: aiConfigStatus, 
+    summary,
     isLoading: aiConfigLoading, 
     error: aiConfigError, 
     successMessage: aiConfigSuccess, 
     fetchStatus: fetchAIStatus, 
     saveKeys, 
+    deleteKey,
     clearError: clearAIConfigError, 
     clearSuccessMessage: clearAIConfigSuccess 
   } = useAIConfig();
@@ -250,12 +251,7 @@ export default function ProfileTab() {
     clearAIConfigError();
     clearAIConfigSuccess();
     
-    const payload: { gemini_key?: string; groq_key?: string; openrouter_key?: string } = {};
-    if (provider === 'gemini') payload.gemini_key = "";
-    if (provider === 'groq') payload.groq_key = "";
-    if (provider === 'openrouter') payload.openrouter_key = "";
-
-    const ok = await saveKeys(payload);
+    const ok = await deleteKey(provider);
     if (ok) {
       toast.success(`API Key ${provider} berhasil dihapus.`);
     }
@@ -419,18 +415,22 @@ export default function ProfileTab() {
           </div>
 
           {/* Quick stats row */}
-          <div className="grid grid-cols-3 gap-3 mt-5 pt-5 border-t border-white/10">
+          <div className="grid grid-cols-4 gap-2 mt-5 pt-5 border-t border-white/10">
             <div className="text-center">
               <span className="text-[9px] text-white/40 font-bold uppercase tracking-wider block">Dashboard</span>
-              <span className="text-xs font-black text-neoYellow">/admin/dashboard</span>
+              <a href="/admin/dashboard" className="text-xs font-black text-neoYellow hover:underline">/admin/dashboard</a>
             </div>
             <div className="text-center">
               <span className="text-[9px] text-white/40 font-bold uppercase tracking-wider block">Pengguna</span>
-              <span className="text-xs font-black text-neoYellow">/admin/users</span>
+              <a href="/admin/users" className="text-xs font-black text-neoYellow hover:underline">/admin/users</a>
             </div>
             <div className="text-center">
               <span className="text-[9px] text-white/40 font-bold uppercase tracking-wider block">Aktivitas</span>
-              <span className="text-xs font-black text-neoYellow">/admin/activity</span>
+              <a href="/admin/activity" className="text-xs font-black text-neoYellow hover:underline">/admin/activity</a>
+            </div>
+            <div className="text-center">
+              <span className="text-[9px] text-white/40 font-bold uppercase tracking-wider block">AI Key Monitor</span>
+              <a href="/admin/ai-keys" className="text-xs font-black text-neoYellow hover:underline">/admin/ai-keys</a>
             </div>
           </div>
         </div>
@@ -652,7 +652,7 @@ export default function ProfileTab() {
 
       </div>
 
-      {/* SECTION 4: KONFIGURASI API AI MANDIRI */}
+      {/* SECTION 4: KONFIGURASI API AI MANDIRI (BYOK) */}
       <div className="bg-white border-3 border-black shadow-neo rounded-3xl p-6 space-y-6 transition-all duration-200 hover:shadow-[6px_6px_0px_#1D2A44] hover:-translate-y-0.5">
         <div className="border-b-2 border-black pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <h3 className="text-sm font-black text-black uppercase tracking-wider flex items-center gap-2">
@@ -663,11 +663,14 @@ export default function ProfileTab() {
           </span>
         </div>
 
-        <p className="text-xs text-black/60 font-bold leading-relaxed">
-          Secara default, Motion menggunakan API Key sistem yang disediakan oleh admin (Asep AI Service). 
-          Jika Anda ingin menggunakan kuota Anda sendiri tanpa batasan limitasi sistem, silakan masukkan API Key Anda di bawah ini. 
-          API Key disimpan secara aman menggunakan enkripsi AES-256-GCM.
-        </p>
+        <div className="bg-slate-50 border-2 border-black/10 rounded-2xl p-4 space-y-2">
+          <p className="text-xs text-black/70 font-bold leading-relaxed">
+            Sesuai kebijakan layanan Motion, pengguna <strong className="text-black">Non-Admin wajib mendaftarkan minimal 1 API Key pribadi</strong> (Gemini, Groq, atau OpenRouter - <strong className="text-neoMint font-black">Gratis</strong>) untuk menggunakan AI Chat ASEP.
+          </p>
+          <p className="text-[11px] text-slate-500 font-semibold">
+            🔒 Setiap API Key akan dites secara real-time ke provider dan disimpan terenkripsi dengan AES-256-GCM.
+          </p>
+        </div>
 
         {aiConfigSuccess && (
           <div className="bg-neoMint border-3 border-black text-black text-xs font-black rounded-xl p-4 flex items-center gap-2.5 shadow-neo animate-fadeIn">
@@ -688,18 +691,18 @@ export default function ProfileTab() {
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <label className="text-[10px] font-black text-black uppercase tracking-wider flex items-center gap-1.5">
-                Gemini API Key
-                {aiConfigStatus?.gemini_configured ? (
+                Google Gemini API Key (Rekomendasi Utama - Gratis)
+                {summary?.providers?.gemini?.configured ? (
                   <span className="px-1.5 py-0.5 text-[8px] bg-neoMint border border-black rounded text-black font-black uppercase shadow-neo-sm animate-fadeIn">
-                    Terhubung ✅
+                    Terverifikasi ✅ ({summary.providers.gemini.keyLast4 ? `••••${summary.providers.gemini.keyLast4}` : 'Aktif'})
                   </span>
                 ) : (
-                  <span className="px-1.5 py-0.5 text-[8px] bg-neoCream border border-black rounded text-black/50 font-bold uppercase animate-fadeIn">
-                    Pakai Sistem ⚙️
+                  <span className="px-1.5 py-0.5 text-[8px] bg-amber-100 border border-amber-400 rounded text-amber-800 font-bold uppercase animate-fadeIn">
+                    Belum Terdaftar 🔑
                   </span>
                 )}
               </label>
-              {aiConfigStatus?.gemini_configured && (
+              {summary?.providers?.gemini?.configured && (
                 <button
                   type="button"
                   onClick={() => handleClearKey('gemini')}
@@ -713,7 +716,7 @@ export default function ProfileTab() {
               <Key className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-black/60" />
               <input
                 type={showGemini ? "text" : "password"}
-                placeholder={aiConfigStatus?.gemini_configured ? "•••••••••••••••• (Telah Dikonfigurasi)" : "Masukkan Gemini API Key baru (AI-xxxx)"}
+                placeholder={summary?.providers?.gemini?.configured ? `••••••••••••${summary.providers.gemini.keyLast4 || ''} (Terverifikasi)` : "Masukkan Gemini API Key baru (AIzaSy-xxxx)"}
                 value={geminiKey}
                 onChange={(e) => setGeminiKey(e.target.value)}
                 className="w-full neo-input rounded-xl pl-10 pr-10 py-3 text-xs font-semibold"
@@ -727,24 +730,30 @@ export default function ProfileTab() {
                 {showGemini ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
+            <p className="text-[10px] text-slate-500 flex items-center gap-1">
+              <span>Dapatkan API Key Gemini gratis di</span>
+              <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-neoBlue hover:underline font-bold inline-flex items-center gap-0.5">
+                Google AI Studio <ExternalLink className="w-3 h-3" />
+              </a>
+            </p>
           </div>
 
           {/* GROQ KEY */}
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <label className="text-[10px] font-black text-black uppercase tracking-wider flex items-center gap-1.5">
-                Groq API Key
-                {aiConfigStatus?.groq_configured ? (
+                Groq API Key (Super Cepat - Gratis)
+                {summary?.providers?.groq?.configured ? (
                   <span className="px-1.5 py-0.5 text-[8px] bg-neoMint border border-black rounded text-black font-black uppercase shadow-neo-sm animate-fadeIn">
-                    Terhubung ✅
+                    Terverifikasi ✅ ({summary.providers.groq.keyLast4 ? `••••${summary.providers.groq.keyLast4}` : 'Aktif'})
                   </span>
                 ) : (
-                  <span className="px-1.5 py-0.5 text-[8px] bg-neoCream border border-black rounded text-black/50 font-bold uppercase animate-fadeIn">
-                    Pakai Sistem ⚙️
+                  <span className="px-1.5 py-0.5 text-[8px] bg-amber-100 border border-amber-400 rounded text-amber-800 font-bold uppercase animate-fadeIn">
+                    Belum Terdaftar 🔑
                   </span>
                 )}
               </label>
-              {aiConfigStatus?.groq_configured && (
+              {summary?.providers?.groq?.configured && (
                 <button
                   type="button"
                   onClick={() => handleClearKey('groq')}
@@ -758,7 +767,7 @@ export default function ProfileTab() {
               <Key className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-black/60" />
               <input
                 type={showGroq ? "text" : "password"}
-                placeholder={aiConfigStatus?.groq_configured ? "•••••••••••••••• (Telah Dikonfigurasi)" : "Masukkan Groq API Key baru (gsk_xxxx)"}
+                placeholder={summary?.providers?.groq?.configured ? `••••••••••••${summary.providers.groq.keyLast4 || ''} (Terverifikasi)` : "Masukkan Groq API Key baru (gsk_xxxx)"}
                 value={groqKey}
                 onChange={(e) => setGroqKey(e.target.value)}
                 className="w-full neo-input rounded-xl pl-10 pr-10 py-3 text-xs font-semibold"
@@ -772,24 +781,30 @@ export default function ProfileTab() {
                 {showGroq ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
+            <p className="text-[10px] text-slate-500 flex items-center gap-1">
+              <span>Dapatkan API Key Groq gratis di</span>
+              <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer" className="text-neoBlue hover:underline font-bold inline-flex items-center gap-0.5">
+                Groq Console <ExternalLink className="w-3 h-3" />
+              </a>
+            </p>
           </div>
 
           {/* OPENROUTER KEY */}
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <label className="text-[10px] font-black text-black uppercase tracking-wider flex items-center gap-1.5">
-                OpenRouter API Key
-                {aiConfigStatus?.openrouter_configured ? (
+                OpenRouter API Key (Model Gratis & Llama 3)
+                {summary?.providers?.openrouter?.configured ? (
                   <span className="px-1.5 py-0.5 text-[8px] bg-neoMint border border-black rounded text-black font-black uppercase shadow-neo-sm animate-fadeIn">
-                    Terhubung ✅
+                    Terverifikasi ✅ ({summary.providers.openrouter.keyLast4 ? `••••${summary.providers.openrouter.keyLast4}` : 'Aktif'})
                   </span>
                 ) : (
-                  <span className="px-1.5 py-0.5 text-[8px] bg-neoCream border border-black rounded text-black/50 font-bold uppercase animate-fadeIn">
-                    Pakai Sistem ⚙️
+                  <span className="px-1.5 py-0.5 text-[8px] bg-amber-100 border border-amber-400 rounded text-amber-800 font-bold uppercase animate-fadeIn">
+                    Belum Terdaftar 🔑
                   </span>
                 )}
               </label>
-              {aiConfigStatus?.openrouter_configured && (
+              {summary?.providers?.openrouter?.configured && (
                 <button
                   type="button"
                   onClick={() => handleClearKey('openrouter')}
@@ -803,7 +818,7 @@ export default function ProfileTab() {
               <Key className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-black/60" />
               <input
                 type={showOpenRouter ? "text" : "password"}
-                placeholder={aiConfigStatus?.openrouter_configured ? "•••••••••••••••• (Telah Dikonfigurasi)" : "Masukkan OpenRouter API Key baru (sk-or-xxxx)"}
+                placeholder={summary?.providers?.openrouter?.configured ? `••••••••••••${summary.providers.openrouter.keyLast4 || ''} (Terverifikasi)` : "Masukkan OpenRouter API Key baru (sk-or-xxxx)"}
                 value={openRouterKey}
                 onChange={(e) => setOpenRouterKey(e.target.value)}
                 className="w-full neo-input rounded-xl pl-10 pr-10 py-3 text-xs font-semibold"
@@ -817,6 +832,12 @@ export default function ProfileTab() {
                 {showOpenRouter ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
+            <p className="text-[10px] text-slate-500 flex items-center gap-1">
+              <span>Dapatkan API Key OpenRouter di</span>
+              <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" className="text-neoBlue hover:underline font-bold inline-flex items-center gap-0.5">
+                OpenRouter Dashboard <ExternalLink className="w-3 h-3" />
+              </a>
+            </p>
           </div>
 
           <button
@@ -826,11 +847,11 @@ export default function ProfileTab() {
           >
             {aiConfigLoading ? (
               <>
-                <Loader className="w-4 h-4 animate-spin" /> Menyimpan...
+                <Loader className="w-4 h-4 animate-spin" /> Memverifikasi & Menyimpan...
               </>
             ) : (
               <>
-                Simpan API Key <Sparkles className="w-4 h-4" />
+                <Sparkles className="w-4 h-4" /> Verifikasi & Simpan API Key 🔑
               </>
             )}
           </button>

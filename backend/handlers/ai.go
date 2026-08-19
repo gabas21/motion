@@ -101,18 +101,16 @@ func HandleAIChat(c echo.Context) error {
 		usage.DailyChatCount = 0
 	}
 
-	// Fetch user plan
+	// Fetch user plan and role
 	var user models.User
-	config.DB.Select("plan").First(&user, "id = ?", userID)
+	config.DB.First(&user, "id = ?", userID)
+
 	if (user.Plan == "" || user.Plan == "free") && usage.DailyChatCount >= 10 {
 		return c.JSON(http.StatusOK, map[string]interface{}{
 			"reply":          "Kuota obrolan harian Anda sudah habis (10/10). Upgrade ke **Paket Pro** untuk obrolan AI tanpa batas! 🚀",
 			"quota_exceeded": true,
 		})
 	}
-
-	// Atomic increment BEFORE processing
-	config.DB.Model(&usage).UpdateColumn("daily_chat_count", gorm.Expr("daily_chat_count + 1"))
 
 	// Klasifikasikan intent menggunakan model ML lokal di Python terlebih dahulu jika tidak ada gambar
 	if req.ImageBase64 == "" {
@@ -212,7 +210,7 @@ func HandleAIChat(c echo.Context) error {
 
 				if err := config.DB.Create(&task).Error; err != nil {
 					log.Printf("[Asep-Router-Err] Gagal membuat tugas otomatis: %v", err)
-					break // fallback ke Gemini
+					break // fallback ke LLM
 				}
 
 				// Picu algoritma penjadwalan AI otomatis
@@ -226,7 +224,6 @@ func HandleAIChat(c echo.Context) error {
 				}
 
 				formattedDate := dueDate.Format("02 January 2006")
-				// Terjemahkan nama bulan ke Indonesia sederhana
 				monthsEn := []string{"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"}
 				monthsId := []string{"Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"}
 				for i, m := range monthsEn {
@@ -242,13 +239,11 @@ func HandleAIChat(c echo.Context) error {
 				var tasks []models.Task
 				var moodleAssigns []models.MoodleAssignment
 				
-				// Ambil 5 tugas non-completed terdekat
 				if err := config.DB.Where("user_id = ? AND status != 'completed'", userID).
 					Order("due_date asc").Limit(5).Find(&tasks).Error; err != nil {
 					log.Printf("[Asep-Router-Warn] Gagal mengambil tugas untuk deadline: %v", err)
 				}
 
-				// Ambil 5 tugas moodle non-submitted terdekat
 				if err := config.DB.Where("user_id = ? AND submission_status != 'submitted'", userID).
 					Order("due_date asc").Limit(5).Find(&moodleAssigns).Error; err != nil {
 					log.Printf("[Asep-Router-Warn] Gagal mengambil moodle assignments untuk deadline: %v", err)
@@ -258,8 +253,6 @@ func HandleAIChat(c echo.Context) error {
 				responseBuilder.WriteString("Berikut adalah daftar tugas terdekat yang perlu Anda perhatikan:\n\n")
 
 				hasDeadlines := false
-				
-				// Terjemahkan nama bulan ke Indonesia sederhana
 				formatIndoDate := func(t *time.Time) string {
 					if t == nil {
 						return "Tidak ada deadline"
@@ -304,6 +297,23 @@ func HandleAIChat(c echo.Context) error {
 		}
 	}
 
+	// ── LLM Execution Path ───────────────────────────────────────────
+	// Check BYOK requirement before calling AskAsep & before incrementing chat count
+	enforceBYOK := config.AppConfig.EnforceBYOKForNonAdmin && !user.IsPrivileged()
+	if enforceBYOK {
+		summary, _ := services.GetUserAIConfigSummary(userID.String())
+		if summary == nil || !summary.HasCustomKey {
+			return c.JSON(http.StatusOK, map[string]interface{}{
+				"reply":            "Untuk menggunakan Asisten AI ASEP, silakan daftarkan API Key Anda sendiri (Gemini / Groq / OpenRouter) di Pengaturan Profil. Penggunaan API Key default sistem hanya diperuntukkan bagi akun Admin.",
+				"requires_api_key": true,
+				"reason":           "no_key_registered",
+			})
+		}
+	}
+
+	// Increment daily chat count ONLY when proceeding to LLM execution
+	config.DB.Model(&usage).UpdateColumn("daily_chat_count", gorm.Expr("daily_chat_count + 1"))
+
 	// Panggil core AI service dengan context injection
 	input := services.AIChatInput{
 		UserID:      userID.String(),
@@ -317,15 +327,41 @@ func HandleAIChat(c echo.Context) error {
 	reply, err := services.AskAsep(input)
 	if err != nil {
 		errMsg := err.Error()
+
+		if strings.Contains(errMsg, "no_key_registered") {
+			return c.JSON(http.StatusOK, map[string]interface{}{
+				"reply":            "Untuk menggunakan Asisten AI ASEP, silakan daftarkan API Key Anda sendiri (Gemini / Groq / OpenRouter) di Pengaturan Profil. Penggunaan API Key default sistem hanya diperuntukkan bagi akun Admin.",
+				"requires_api_key": true,
+				"reason":           "no_key_registered",
+			})
+		}
+
+		if strings.Contains(errMsg, "key_invalid_or_quota") || strings.Contains(strings.ToLower(errMsg), "401") || strings.Contains(strings.ToLower(errMsg), "invalid api key") {
+			return c.JSON(http.StatusOK, map[string]interface{}{
+				"reply":            "API Key Anda tidak dapat digunakan saat ini (kemungkinan kuota habis atau key kedaluwarsa). Silakan periksa kembali di Pengaturan Profil.",
+				"requires_api_key": true,
+				"reason":           "key_invalid_or_quota",
+			})
+		}
+
 		// Jika error mengandung indikator rate limit atau gangguan model AI, kembalikan HTTP 503 Service Unavailable
 		if strings.Contains(strings.ToLower(errMsg), "rate-limit") || 
 			strings.Contains(strings.ToLower(errMsg), "terganggu") || 
 			strings.Contains(strings.ToLower(errMsg), "sibuk") || 
 			strings.Contains(strings.ToLower(errMsg), "busy") || 
 			strings.Contains(strings.ToLower(errMsg), "429") {
-			return c.JSON(http.StatusServiceUnavailable, map[string]string{"error": errMsg})
+			return c.JSON(http.StatusServiceUnavailable, map[string]interface{}{
+				"error":            errMsg,
+				"requires_api_key": false,
+				"reason":           "provider_error",
+			})
 		}
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to communicate with AI server: " + errMsg})
+
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"error":            "failed to communicate with AI server: " + errMsg,
+			"requires_api_key": false,
+			"reason":           "provider_error",
+		})
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{

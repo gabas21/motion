@@ -6,6 +6,7 @@ interface WeatherParticleCanvasProps {
 }
 
 export const WeatherParticleCanvas = React.memo(function WeatherParticleCanvas({ type }: WeatherParticleCanvasProps) {
+  const weatherType = type;
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -43,7 +44,7 @@ export const WeatherParticleCanvas = React.memo(function WeatherParticleCanvas({
     }
     const particles: Particle[] = [];
 
-    if (type === 'rain') {
+    if (weatherType === 'rain') {
       for (let i = 0; i < 60; i++) {
         particles.push({
           x: Math.random() * canvas.width,
@@ -54,7 +55,7 @@ export const WeatherParticleCanvas = React.memo(function WeatherParticleCanvas({
           opacity: 0.15 + Math.random() * 0.3,
         });
       }
-    } else if (type === 'snow') {
+    } else if (weatherType === 'snow') {
       for (let i = 0; i < 40; i++) {
         particles.push({
           x: Math.random() * canvas.width,
@@ -65,7 +66,7 @@ export const WeatherParticleCanvas = React.memo(function WeatherParticleCanvas({
           opacity: 0.5 + Math.random() * 0.4,
         });
       }
-    } else if (type === 'sun') {
+    } else if (weatherType === 'sun') {
       // Floating golden motes
       for (let i = 0; i < 20; i++) {
         particles.push({
@@ -78,7 +79,7 @@ export const WeatherParticleCanvas = React.memo(function WeatherParticleCanvas({
           color: '#FBBF24',
         });
       }
-    } else if (type === 'clear-night') {
+    } else if (weatherType === 'clear-night') {
       // Twinkling stars
       for (let i = 0; i < 60; i++) {
         particles.push({
@@ -91,7 +92,7 @@ export const WeatherParticleCanvas = React.memo(function WeatherParticleCanvas({
           color: i % 5 === 0 ? '#A78BFA' : '#FFFFFF',
         });
       }
-    } else if (type === 'fog') {
+    } else if (weatherType === 'fog') {
       // Drifting fog blobs
       for (let i = 0; i < 6; i++) {
         particles.push({
@@ -103,7 +104,7 @@ export const WeatherParticleCanvas = React.memo(function WeatherParticleCanvas({
           opacity: 0.04 + Math.random() * 0.07,
         });
       }
-    } else if (type === 'wind') {
+    } else if (weatherType === 'wind') {
       // Diagonal streaks
       for (let i = 0; i < 30; i++) {
         particles.push({
@@ -115,7 +116,7 @@ export const WeatherParticleCanvas = React.memo(function WeatherParticleCanvas({
           opacity: 0.04 + Math.random() * 0.08,
         });
       }
-    } else if (type === 'thunder') {
+    } else if (weatherType === 'thunder') {
       // Sparse dark rain + lightning flashes handled in DOM
       for (let i = 0; i < 50; i++) {
         particles.push({
@@ -128,7 +129,7 @@ export const WeatherParticleCanvas = React.memo(function WeatherParticleCanvas({
           color: '#6B7280',
         });
       }
-    } else if (type === 'partly-cloudy') {
+    } else if (weatherType === 'partly-cloudy') {
       // Light floating particles
       for (let i = 0; i < 12; i++) {
         particles.push({
@@ -141,7 +142,7 @@ export const WeatherParticleCanvas = React.memo(function WeatherParticleCanvas({
           color: '#38BDF8',
         });
       }
-    } else if (type === 'cloud') {
+    } else if (weatherType === 'cloud') {
       for (let i = 0; i < 6; i++) {
         particles.push({
           x: Math.random() * canvas.width,
@@ -161,7 +162,7 @@ export const WeatherParticleCanvas = React.memo(function WeatherParticleCanvas({
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       // Lightning flash effect for thunder
-      if (type === 'thunder') {
+      if (weatherType === 'thunder') {
         lightningTimer++;
         if (lightningTimer > 180 + Math.random() * 300) {
           lightningFlash = 8;
@@ -178,7 +179,7 @@ export const WeatherParticleCanvas = React.memo(function WeatherParticleCanvas({
         ctx.save();
         ctx.globalAlpha = p.opacity;
 
-        if (type === 'rain' || type === 'thunder') {
+        if (weatherType === 'rain' || weatherType === 'thunder') {
           // Draw rain drop lines
           ctx.strokeStyle = p.color || '#93C5FD';
           ctx.lineWidth = p.size;
@@ -193,7 +194,7 @@ export const WeatherParticleCanvas = React.memo(function WeatherParticleCanvas({
             p.y = -20;
             p.x = Math.random() * canvas.width;
           }
-        } else if (type === 'snow') {
+        } else if (weatherType === 'snow') {
           ctx.fillStyle = '#FFFFFF';
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
@@ -204,7 +205,7 @@ export const WeatherParticleCanvas = React.memo(function WeatherParticleCanvas({
             p.y = -10;
             p.x = Math.random() * canvas.width;
           }
-        } else if (type === 'sun') {
+        } else if (weatherType === 'sun') {
           ctx.fillStyle = p.color || '#FBBF24';
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
@@ -215,7 +216,7 @@ export const WeatherParticleCanvas = React.memo(function WeatherParticleCanvas({
             p.y = canvas.height + 10;
             p.x = Math.random() * canvas.width;
           }
-        } else if (type === 'clear-night') {
+        } else if (weatherType === 'clear-night') {
           // Twinkling star
           const twinkle = 0.5 + 0.5 * Math.sin(Date.now() * 0.002 + p.x * 0.01 + p.y * 0.01);
           ctx.globalAlpha = p.opacity * twinkle;
@@ -223,7 +224,7 @@ export const WeatherParticleCanvas = React.memo(function WeatherParticleCanvas({
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
           ctx.fill();
-        } else if (type === 'fog') {
+        } else if (weatherType === 'fog') {
           const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
           grad.addColorStop(0, 'rgba(209, 213, 219, 0.8)');
           grad.addColorStop(1, 'rgba(209, 213, 219, 0)');
@@ -235,7 +236,7 @@ export const WeatherParticleCanvas = React.memo(function WeatherParticleCanvas({
           if (p.x > canvas.width + p.size) {
             p.x = -p.size;
           }
-        } else if (type === 'wind') {
+        } else if (weatherType === 'wind') {
           ctx.strokeStyle = 'rgba(148, 163, 184, 0.6)';
           ctx.lineWidth = 1;
           ctx.beginPath();
@@ -247,7 +248,7 @@ export const WeatherParticleCanvas = React.memo(function WeatherParticleCanvas({
             p.x = -p.size;
             p.y = Math.random() * canvas.height;
           }
-        } else if (type === 'partly-cloudy') {
+        } else if (weatherType === 'partly-cloudy') {
           ctx.fillStyle = p.color || '#93C5FD';
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
@@ -258,7 +259,7 @@ export const WeatherParticleCanvas = React.memo(function WeatherParticleCanvas({
             p.y = canvas.height + 10;
             p.x = Math.random() * canvas.width;
           }
-        } else if (type === 'cloud') {
+        } else if (weatherType === 'cloud') {
           const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
           grad.addColorStop(0, 'rgba(148, 163, 184, 0.7)');
           grad.addColorStop(1, 'rgba(148, 163, 184, 0)');
@@ -267,25 +268,40 @@ export const WeatherParticleCanvas = React.memo(function WeatherParticleCanvas({
           ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
           ctx.fill();
           p.x += p.vx;
-          if (p.x > canvas.width + p.size) {
-            p.x = -p.size;
-            p.y = 10 + Math.random() * canvas.height * 0.7;
-          }
+          ctx.restore();
         }
+      }
 
-        ctx.restore();
+      const isVisible = !document.hidden;
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      if (!isVisible || prefersReducedMotion) {
+        // Draw static frame and do not loop
+        return;
       }
 
       animId = requestAnimationFrame(draw);
     };
 
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        cancelAnimationFrame(animId);
+      } else {
+        cancelAnimationFrame(animId);
+        animId = requestAnimationFrame(draw);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     draw();
     return () => {
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', handleResize);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearTimeout(resizeTimeout);
     };
-  }, [type]);
+  }, [weatherType]);
 
   return (
     <canvas
@@ -295,3 +311,5 @@ export const WeatherParticleCanvas = React.memo(function WeatherParticleCanvas({
     />
   );
 });
+
+export default WeatherParticleCanvas;

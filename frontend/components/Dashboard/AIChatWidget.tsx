@@ -3,14 +3,14 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   Sparkles, X, Send, Trash2, Bot, Image as ImageIcon, BookOpen, Smile, Zap,
-  Paperclip, Loader, Maximize2, Minimize2, FileText, Brain, Heart, GraduationCap, Layers,
+  Paperclip, Loader, Maximize2, Minimize2, FileText, Brain, Heart, GraduationCap, Layers, Key,
 } from 'lucide-react';
 import { useAI, ChatMessage, Personality } from '../../hooks/useAI';
 import { useAIChatBridge } from '../../hooks/useAIChatBridge';
 import MarkdownRenderer from './MarkdownRenderer';
 import API from '../../lib/api';
 import OnboardingTooltip from '../Onboarding/OnboardingTooltip';
-import PetIcon, { PetState } from '../ui/PetIcon';
+
 
 // ─── Konfigurasi Personality (UI/UX PRO-MAX: No Emojis, Pure SVG Icons) ───────────
 const PERSONALITY_CONFIG: Record<Personality, {
@@ -91,54 +91,8 @@ const AIChatWidget = React.memo(function AIChatWidget() {
   const [banner, setBanner] = useState<{ message: string; type: 'error' | 'success' | 'info' } | null>(null);
   const [isExporting, setIsExporting] = useState<number | null>(null);
   const [isDragOver, setIsDragOver] = useState(false); // Untuk drop zone saat drag dari WeLearn
-  const [eveState, setEveState] = useState<PetState>('idle');
-  const [eveBubble, setEveBubble] = useState<string | null>(null);
-
   const { messages, isLoading, sendMessage, stopRequest, clearChat } = useAI();
   const { isOpen: bridgeOpen, pendingContext, clearContext } = useAIChatBridge();
-
-  // Sync EVE state dengan aktivitas AI (isLoading / isExporting)
-  useEffect(() => {
-    if (isLoading) {
-      setEveState('review');
-    } else if (isExporting !== null) {
-      setEveState('eat');
-    } else {
-      setEveState('idle');
-    }
-  }, [isLoading, isExporting]);
-
-  // Animasi EVE saat mengetik
-  useEffect(() => {
-    if (inputValue.trim() && !isLoading && isExporting === null) {
-      setEveState('run');
-      const timer = setTimeout(() => {
-        setEveState((prev) => (prev === 'run' ? 'idle' : prev));
-      }, 600);
-      return () => clearTimeout(timer);
-    } else if (!inputValue.trim() && !isLoading && isExporting === null) {
-      setEveState('idle');
-    }
-  }, [inputValue, isLoading, isExporting]);
-
-  const handleEveClick = () => {
-    if (isLoading || isExporting !== null) return;
-    const greetings = [
-      "Hello! Aku EVE, asisten produktivitasmu! Beep boop! 🚀",
-      "Ada yang bisa kubantu? Aku siap menemanimu bekerja! 💻",
-      "Ayo selesaikan tugas-tugasmu hari ini! Semangat! ✨",
-      "Beep... boop... Aku sangat suka membantumu! 🤖",
-      "Jangan lupa istirahat ya kalau sudah lelah! ☕"
-    ];
-    const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
-    setEveBubble(randomGreeting);
-    setEveState('jump');
-    
-    setTimeout(() => {
-      setEveBubble(null);
-      setEveState((prev) => (prev === 'jump' ? 'idle' : prev));
-    }, 4000);
-  };
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatWindowRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -324,8 +278,6 @@ const AIChatWidget = React.memo(function AIChatWidget() {
     e.preventDefault();
     if ((!inputValue.trim() && !imageBase64) || isLoading) return;
 
-    setEveState('attack');
-
     const text = inputValue || '(Tolong analisis gambar soal yang aku kirim ini)';
     const img = imageBase64 ?? undefined;
 
@@ -419,7 +371,7 @@ const AIChatWidget = React.memo(function AIChatWidget() {
         >
           {/* Nama Pengirim */}
           <span className={`text-[10px] font-extrabold text-black/40 mb-1 flex items-center gap-1 ${isUser ? 'self-end' : 'self-start'}`}>
-            {!isUser && <PetIcon state="idle" size={16} />}
+            {!isUser && <Bot size={12} className="text-black/60 stroke-[2.5]" />}
             <span>{isUser ? 'Kamu' : `Asep`}</span>
           </span>
 
@@ -443,7 +395,32 @@ const AIChatWidget = React.memo(function AIChatWidget() {
             {isUser ? (
               <p className="text-xs md:text-sm text-slate-900 font-extrabold">{msg.content}</p>
             ) : (
-              <MarkdownRenderer content={msg.content} size="sm" />
+              <>
+                <MarkdownRenderer content={msg.content} size="sm" />
+                {msg.requires_api_key && (
+                  <div className="mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col gap-2">
+                    <div className="flex items-center gap-2 text-xs font-bold text-amber-400">
+                      <Key className="w-4 h-4 text-amber-400" />
+                      <span>Konfigurasi API Key Dibutuhkan</span>
+                    </div>
+                    <p className="text-[11px] text-slate-300">
+                      {msg.reason === 'key_invalid_or_quota'
+                        ? 'API Key Anda saat ini bermasalah (kuota habis atau kedaluwarsa). Perbarui API Key di Pengaturan Profile.'
+                        : 'Silakan daftarkan API Key pribadi Anda (Gemini, Groq, atau OpenRouter) untuk menikmati akses AI ASEP tanpa batas.'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent('switch-tab', { detail: 'profile' }));
+                      }}
+                      className="mt-1 flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-400 text-slate-950 text-xs font-bold hover:bg-amber-300 transition-all shadow-md active:scale-95 cursor-pointer"
+                    >
+                      <Key className="w-3.5 h-3.5" />
+                      <span>Buka Pengaturan API Key 🔑</span>
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -486,11 +463,12 @@ const AIChatWidget = React.memo(function AIChatWidget() {
             }
             setIsDragOver(false);
           }}
-          className={`fixed bottom-[140px] right-4 md:bottom-[80px] md:right-6 w-16 h-16 hover:scale-105 active:scale-95 transition-all flex items-center justify-center cursor-pointer z-50 rounded-2xl ai-trigger-btn group ${
+          className={`fixed bottom-20 right-3 md:bottom-20 md:right-6 min-w-[52px] min-h-[52px] w-14 h-14 md:w-16 md:h-16 hover:scale-105 active:scale-90 transition-all flex items-center justify-center cursor-pointer z-50 rounded-2xl ai-trigger-btn group focus-visible:ring-2 focus-visible:ring-neoBlue ${
             isDragOver
               ? 'bg-neoYellow border-3 border-black scale-125 shadow-[0_0_0_4px_rgba(255,222,77,0.4)] rotate-12'
               : 'bg-[#A2A88F]/20 glass-panel'
           }`}
+          aria-label={isOpen ? 'Tutup Asep AI' : 'Buka Asep AI'}
           title={isDragOver ? 'Lepaskan untuk tanya Asep!' : 'Tanya Asep AI'}
         >
           {isDragOver ? (
@@ -502,7 +480,7 @@ const AIChatWidget = React.memo(function AIChatWidget() {
             <X size={26} className="text-black stroke-[3] group-hover:rotate-90 transition-transform duration-200" />
           ) : (
             <div className="relative">
-              <PetIcon state="idle" size={36} />
+              <Bot size={26} className="text-black stroke-[2.5]" />
               <span className="absolute -top-1 -right-1 w-3 h-3 bg-neoMint border border-black rounded-full animate-ping" />
               <span className="absolute -top-1 -right-1 w-3 h-3 bg-neoMint border border-black rounded-full" />
             </div>
@@ -510,78 +488,25 @@ const AIChatWidget = React.memo(function AIChatWidget() {
         </button>
       </OnboardingTooltip>
 
-      {/* ── 2. Chat Window Panel (UI/UX PRO-MAX: 300ms smooth transitions, high-contrast text) ── */}
+      {/* ── 2. Chat Window Panel (UI/UX PRO-MAX: Fullscreen drawer on mobile, 300ms smooth transitions) ── */}
       {isOpen && (
         <div
           ref={chatWindowRef}
-          className={`fixed bottom-[212px] right-2.5 md:bottom-[152px] md:right-6 glass-panel z-50 flex rounded-2xl overflow-hidden transition-all duration-300 ${
+          className={`fixed inset-x-2 bottom-[84px] top-14 md:top-auto md:bottom-[152px] md:right-6 glass-panel z-[100000] flex rounded-2xl overflow-hidden origin-bottom-right transition-all duration-200 ${
             isExpanded
-              ? 'w-[calc(100vw-20px)] md:w-[90vw] lg:w-[85vw] xl:w-[1200px] h-[calc(100vh-100px)] md:h-[720px]'
+              ? 'w-[calc(100vw-20px)] md:w-[760px] lg:w-[840px] h-[calc(100vh-100px)] md:h-[720px]'
               : 'w-[calc(100vw-20px)] md:w-[580px] h-[calc(100vh-100px)] md:h-[660px]'
-          } animate-in slide-in-from-bottom-5 duration-200`}
+          } animate-in fade-in-0 zoom-in-95 duration-200`}
+          style={{ transitionTimingFunction: 'var(--ease-out)' }}
         >
-          
-          {/* LEFT COLUMN: EVE PET COMPANION (Hanya muncul jika di-expand / layar lebar) */}
-          {isExpanded && (
-            <div className="w-[340px] border-r border-white/40 bg-white/20 flex flex-col shrink-0 overflow-y-auto p-5 space-y-4 text-left animate-slideInLeft">
-              <div className="flex-1 flex flex-col space-y-4 min-h-0">
-                {/* Header EVE */}
-                <div className="border-b border-white/30 pb-3 select-none shrink-0">
-                  <h4 className="font-heading font-black text-base text-black uppercase tracking-wide flex items-center gap-2">
-                    <Bot size={18} className="text-black shrink-0" /> EVE Pet Companion
-                  </h4>
-                  <p className="text-[10px] font-bold text-black/60 mt-1">
-                    Klik EVE untuk menyapa!
-                  </p>
-                </div>
-
-                {/* Main EVE Container */}
-                <div className="flex-1 flex flex-col items-center justify-center bg-[#FAF9F5]/80 border-3 border-black rounded-2xl p-6 shadow-[4px_4px_0px_#000] relative min-h-[220px]">
-                  {/* Speech Bubble */}
-                  {eveBubble && (
-                    <div className="absolute top-2 bg-white border-2 border-black px-3 py-1.5 rounded-xl shadow-[2px_2px_0px_#000] text-[10px] font-extrabold text-black max-w-[240px] text-center animate-bounce z-10">
-                      {eveBubble}
-                      {/* Bubble tail */}
-                      <div className="absolute bottom-[-6px] left-1/2 transform -translate-x-1/2 w-2.5 h-2.5 bg-white border-r-2 border-b-2 border-black rotate-45" />
-                    </div>
-                  )}
-
-                  {/* EVE Mascot (Interactive) */}
-                  <div className="hover:scale-105 transition-transform duration-200">
-                    <PetIcon
-                      state={eveState}
-                      size={120}
-                      onClick={handleEveClick}
-                    />
-                  </div>
-
-                  {/* EVE Mood Status Indicator */}
-                  <div className="mt-4 px-3 py-1 bg-black text-white text-[9px] font-black uppercase rounded-lg border border-black shadow-[1.5px_1.5px_0px_#000]">
-                    Status: {
-                      eveState === 'idle' ? 'Menemanimu 🌟' :
-                      eveState === 'run' ? 'Berlari Kencang... 🏃‍♂️' :
-                      eveState === 'sleep' ? 'Tidur Nyenyak 😴' :
-                      eveState === 'eat' ? 'Sedang Mengunduh... 🍿' :
-                      eveState === 'attack' ? 'Mengirim Sinyal! ⚡' :
-                      eveState === 'jump' ? 'Melompat Gembira! 🎉' :
-                      eveState === 'play' ? 'Bermain Ceria! 🐾' :
-                      eveState === 'failed' ? 'Pusing / Error 😵' : 
-                      eveState === 'review' ? 'Mereview Rencana... 🔍' : 'Aktif'
-                    }
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* RIGHT COLUMN: MAIN CHAT PANEL (Spacious & ProMax Layout) */}
+          {/* MAIN CHAT PANEL (Spacious & ProMax Layout) */}
           <div className="flex-1 flex flex-col h-full overflow-hidden">
             
             {/* Header Panel */}
             <div className={`${currentPersonality.headerBg} border-b-3 border-black p-3.5 flex items-center justify-between shrink-0 transition-colors duration-300 shadow-[0_2px_8px_rgba(29,42,68,0.08)]`}>
               <div className="flex items-center gap-3">
-                <div className="bg-white/50 border border-black/20 p-1 rounded-lg shadow-neo-sm overflow-hidden flex items-center justify-center">
-                  <PetIcon state={isLoading ? 'review' : isExporting !== null ? 'eat' : 'play'} size={28} />
+                <div className="bg-white/50 border border-black/20 p-1.5 rounded-lg shadow-neo-sm overflow-hidden flex items-center justify-center">
+                  <Bot size={20} className="text-black stroke-[2.5]" />
                 </div>
                 <div className="text-left">
                   <h3 className={`font-heading font-black text-sm ${currentPersonality.headerText} leading-none flex items-center gap-1.5`}>
@@ -634,7 +559,7 @@ const AIChatWidget = React.memo(function AIChatWidget() {
                   type="button"
                   onClick={() => setIsExpanded(!isExpanded)}
                   className="hidden md:flex p-1.5 glass-btn rounded-lg cursor-pointer items-center justify-center animate-fadeIn"
-                  title={isExpanded ? 'Kembalikan Tampilan Kecil' : 'Gunakan Widescreen Split-Pane (RAG Hub)'}
+                  title={isExpanded ? 'Kembalikan Tampilan Standar' : 'Perluas Tampilan Obrolan'}
                 >
                   {isExpanded ? <Minimize2 size={13} className="stroke-[2.5]" /> : <Maximize2 size={13} className="stroke-[2.5]" />}
                 </button>
@@ -739,7 +664,7 @@ const AIChatWidget = React.memo(function AIChatWidget() {
                     Asep sedang memikirkan jawaban...
                   </span>
                   <div className="flex gap-3 items-center px-4 py-2.5 glass-card min-w-[140px]">
-                    <PetIcon state="review" size={28} />
+                    <Bot size={20} className="text-black stroke-[2.5] animate-pulse" />
                     <div className="flex gap-1.5 items-center">
                       <span className="w-2 h-2 bg-black rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                       <span className="w-2 h-2 bg-black rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />

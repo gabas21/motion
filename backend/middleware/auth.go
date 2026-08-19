@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/labstack/echo/v4"
+	"github.com/motion/backend/config"
+	"github.com/motion/backend/models"
 	"github.com/motion/backend/pkg/utils"
 )
 
@@ -42,6 +44,18 @@ func AuthRequired(next echo.HandlerFunc) echo.HandlerFunc {
 		claims, err := utils.ValidateJWT(tokenStr)
 		if err != nil {
 			return utils.JSONError(c, http.StatusUnauthorized, "Sesi login tidak valid atau telah kedaluwarsa")
+		}
+
+		// Verify real-time suspension status from DB
+		var user models.User
+		if err := config.DB.Select("id, locked_until").First(&user, "id = ?", claims.UserID).Error; err == nil {
+			if user.IsSuspended() {
+				return c.JSON(http.StatusForbidden, map[string]interface{}{
+					"code":    "ACCOUNT_SUSPENDED",
+					"error":   "Akun Anda telah dinonaktifkan oleh administrator.",
+					"message": "Akses Anda ditangguhkan sementara. Silakan hubungi administrator.",
+				})
+			}
 		}
 
 		// Store user details in the context

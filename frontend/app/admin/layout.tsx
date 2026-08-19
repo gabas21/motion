@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, Activity, ArrowLeft, Sparkles, Shield, CloudSun, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, Users, Activity, ArrowLeft, Sparkles, Shield, CloudSun, ClipboardList, Key, Radio } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
 export default function AdminLayout({
@@ -58,9 +58,11 @@ export default function AdminLayout({
 
   const menuItems = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
+    { name: 'Command Center', path: '/admin/command-center', icon: Radio, badge: 'LIVE' },
     { name: 'Pengguna', path: '/admin/users', icon: Users, badge: 'BARU' },
     { name: 'Aktivitas', path: '/admin/activity', icon: Activity },
     { name: 'Audit Logs', path: '/admin/audit-logs', icon: ClipboardList, badge: 'NEW' },
+    { name: 'AI Key Monitor', path: '/admin/ai-keys', icon: Key, badge: 'BYOK' },
   ];
 
   return (

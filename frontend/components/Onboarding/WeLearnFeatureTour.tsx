@@ -153,46 +153,48 @@ export default function WeLearnFeatureTour({ isConnected, onClose }: WeLearnFeat
 
   // Popover position calculation helper
   const getPopoverStyle = () => {
-    if (!spotlightRect) {
+    if (!spotlightRect || activeStep.placement === 'center') {
       return {};
     }
 
     const margin = 16;
-    const popoverWidth = 420;
     const windowWidth = typeof window !== 'undefined' ? window.innerWidth : 1000;
     const windowHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
+    const popoverWidth = Math.min(420, windowWidth - 32);
 
     let left = spotlightRect.left + spotlightRect.width / 2 - popoverWidth / 2;
     let top = spotlightRect.bottom + margin;
 
-    // Check bounds
-    if (left < 10) left = 10;
-    if (left + popoverWidth > windowWidth - 10) {
-      left = windowWidth - popoverWidth - 10;
-    }
-
     if (activeStep.placement === 'top') {
-      top = spotlightRect.top - margin - 220; // rough estimation
+      top = spotlightRect.top - margin - 250;
     } else if (activeStep.placement === 'left') {
       left = spotlightRect.left - popoverWidth - margin;
-      top = spotlightRect.top + spotlightRect.height / 2 - 80;
+      top = spotlightRect.top + spotlightRect.height / 2 - 100;
     } else if (activeStep.placement === 'right') {
       left = spotlightRect.right + margin;
-      top = spotlightRect.top + spotlightRect.height / 2 - 80;
+      top = spotlightRect.top + spotlightRect.height / 2 - 100;
     }
 
-    // Secondary adjustments
-    if (top < 10) top = 10;
-    if (top > windowHeight - 240) top = windowHeight - 240;
+    // Strict boundary checks
+    if (left < 16) left = 16;
+    if (left + popoverWidth > windowWidth - 16) {
+      left = windowWidth - popoverWidth - 16;
+    }
+
+    if (top < 16) top = 16;
+    if (top > windowHeight - 260) top = windowHeight - 260;
 
     return {
       top: `${top}px`,
       left: `${left}px`,
-      position: 'absolute' as const,
+      width: `${popoverWidth}px`,
+      position: 'fixed' as const,
     };
   };
 
   if (!mounted) return null;
+
+  const isCentered = !spotlightRect || activeStep.placement === 'center';
 
   return createPortal(
     <div className="fixed inset-0 z-[99999] overflow-hidden select-none pointer-events-auto">
@@ -311,13 +313,13 @@ export default function WeLearnFeatureTour({ isConnected, onClose }: WeLearnFeat
       )}
 
       {/* Tour Card Popover Container */}
-      <div className="absolute inset-0 z-30 pointer-events-none flex items-center justify-center">
+      <div className={`fixed inset-0 z-30 pointer-events-none ${isCentered ? 'flex items-center justify-center p-4' : ''}`}>
         <motion.div
           key={currentStep}
           initial={{ opacity: 0, y: 15, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           style={getPopoverStyle()}
-          className="w-full max-w-[420px] bg-white border-3 border-black rounded-3xl p-6 shadow-[6px_6px_0px_#000] pointer-events-auto relative overflow-hidden"
+          className="w-full max-w-[420px] bg-white border-3 border-black rounded-3xl p-5 md:p-6 shadow-[6px_6px_0px_#000] pointer-events-auto relative overflow-hidden"
         >
           {/* Top Line accent */}
           <div className="absolute top-0 left-0 right-0 h-2 bg-neoYellow border-b-2 border-black" />

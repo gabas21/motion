@@ -153,11 +153,12 @@ export default function DatePicker({
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full neo-input rounded-xl pl-10 pr-10 py-3 text-sm bg-white text-black font-black flex items-center justify-between cursor-pointer transition-all disabled:opacity-60 disabled:cursor-not-allowed relative"
+        className="w-full neo-input rounded-xl pl-10 pr-4 py-3 text-sm bg-white text-black font-black flex items-center justify-start cursor-pointer transition-all disabled:opacity-60 disabled:cursor-not-allowed relative"
       >
-        <CalendarDays className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-black shrink-0" />
-        <span className={value ? 'text-black font-black' : 'text-gray-400 font-bold'}>{getDisplayValue()}</span>
-        <CalendarDays className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-black shrink-0" />
+        <CalendarDays className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-black shrink-0 pointer-events-none" />
+        <span className={`truncate text-left ${value ? 'text-black font-black' : 'text-gray-400 font-bold'}`}>
+          {getDisplayValue()}
+        </span>
       </button>
 
       {isOpen && (

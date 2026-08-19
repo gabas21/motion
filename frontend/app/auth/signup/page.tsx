@@ -3,10 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Sparkles, Mail, Lock, User, ArrowRight, Loader, Eye, EyeOff } from 'lucide-react';
+import { Sparkles, Mail, Lock, User, ArrowRight, Loader, Eye, EyeOff, Check, Zap } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { AuthPageSkeleton } from '../../../components/ui/Skeleton';
-
 
 export default function SignupPage() {
   const router = useRouter();
@@ -16,6 +15,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<'pro'>('pro');
   const [isRedirecting, setIsRedirecting] = useState(false);
 
   // Bersihkan pesan error saat pertama masuk halaman
@@ -36,6 +36,9 @@ export default function SignupPage() {
     if (!name || !email || !password || isLoading || isRedirecting) return;
     
     setIsRedirecting(true);
+    // Simpan pilihan plan awal pengguna di localStorage
+    localStorage.setItem('motion_signup_plan', selectedPlan);
+
     const success = await signup(name, email, password);
     if (success) {
       router.push('/dashboard');
@@ -48,7 +51,6 @@ export default function SignupPage() {
     return <AuthPageSkeleton />;
   }
 
-
   return (
     <div className="min-h-screen flex items-center justify-center px-6 relative py-12 bg-transparent">
       {/* Dekorasi Bentuk Geometris Neobrutalisme di Latar Belakang */}
@@ -56,7 +58,7 @@ export default function SignupPage() {
       <div className="absolute bottom-12 right-12 w-36 h-36 bg-neoYellow border-3 border-black shadow-neo rounded-full transform rotate-12 hidden md:block"></div>
       <div className="absolute top-1/4 right-20 w-16 h-16 bg-neoMint border-3 border-black shadow-neo rounded-xl transform rotate-45 hidden md:block"></div>
 
-      <div className="w-full max-w-md bg-white border-3 border-black shadow-neo-lg rounded-3xl p-8 relative z-10">
+      <div className="w-full max-w-lg bg-white border-3 border-black shadow-neo-lg rounded-3xl p-8 relative z-10">
         {/* Header */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2 mb-4">
@@ -136,6 +138,28 @@ export default function SignupPage() {
             </div>
           </div>
 
+          {/* Paket Akun Pro (Tanpa Opsi Gratis) */}
+          <div className="space-y-2 text-left pt-2">
+            <label className="text-xs font-black text-black uppercase tracking-wider ml-1">Paket Keanggotaan</label>
+            <div className="border-3 border-black bg-neoYellow rounded-2xl p-4 shadow-neo relative">
+              <span className="absolute -top-3 right-4 bg-neoPink text-white border border-black px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider shadow-neo-sm">
+                PREMIUM PRO
+              </span>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm font-black text-black uppercase flex items-center gap-1.5">
+                  Motion Pro <Zap size={14} className="fill-black" />
+                </span>
+                <Check size={16} className="text-black stroke-[3]" />
+              </div>
+              <div className="text-xl font-black text-black">
+                Rp 30.000 <span className="text-xs font-bold text-black/80">/ bulan</span>
+              </div>
+              <p className="text-xs font-bold text-black/80 mt-1">
+                Akses AI tanpa batas, auto-sync WeLearn &amp; kalender, serta pengingat Telegram instan.
+              </p>
+            </div>
+          </div>
+
           {/* Tombol Submit */}
           <button
             type="submit"
@@ -148,7 +172,7 @@ export default function SignupPage() {
               </>
             ) : (
               <>
-                Daftar Sekarang <ArrowRight className="w-4 h-4" />
+                Daftar &amp; Lanjut Setup <ArrowRight className="w-4 h-4" />
               </>
             )}
           </button>

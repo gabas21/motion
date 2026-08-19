@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Allow: /auth/login
+Allow: /auth/signup
+Disallow: /dashboard
+Disallow: /admin
+Sitemap: https://motion.yourdomain.com/sitemap.xml

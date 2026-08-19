@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import API from '../../../lib/api';
 import { 
   Search, ShieldAlert, Loader, Trash2, X, User,
   CheckCircle, Link2, Calendar, BookOpen, Clock, AlertCircle,
-  Ban, ShieldCheck, KeyRound, Check, RefreshCw
+  Ban, ShieldCheck, KeyRound, Check, RefreshCw, Eye
 } from 'lucide-react';
 import { toast } from '../../../hooks/useToast';
 import { ToastContainer } from '../../../components/ui/Toast';
@@ -400,6 +401,13 @@ export default function AdminUsers() {
                       {/* Actions */}
                       <td className="p-4 text-center">
                         <div className="flex items-center justify-center gap-2">
+                          <Link
+                            href={`/admin/users/${usr.id}/inspect`}
+                            className="px-2.5 py-1.5 bg-neoYellow text-black border-2 border-black rounded-lg text-xxs font-black shadow-neo-sm hover:translate-x-[0.5px] hover:translate-y-[0.5px] hover:shadow-none transition-all cursor-pointer flex items-center gap-1"
+                          >
+                            <Eye className="w-3 h-3" /> INSPEKSI
+                          </Link>
+
                           <button
                             onClick={() => viewUserDetails(usr)}
                             className="px-2.5 py-1.5 bg-neoCream text-black border-2 border-black rounded-lg text-xxs font-black shadow-neo-sm hover:translate-x-[0.5px] hover:translate-y-[0.5px] hover:shadow-none transition-all cursor-pointer"

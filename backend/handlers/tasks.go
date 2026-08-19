@@ -38,9 +38,8 @@ type TaskInput struct {
 // @Failure 401 {object} map[string]interface{}
 // @Router /tasks [post]
 func CreateTask(c echo.Context) error {
-	userIDVal := c.Get("userId")
-	userID, ok := userIDVal.(uuid.UUID)
-	if !ok {
+	userID, err := utils.GetUserID(c)
+	if err != nil {
 		return utils.JSONError(c, http.StatusUnauthorized, "Unauthorized")
 	}
 
@@ -125,9 +124,8 @@ func CreateTask(c echo.Context) error {
 // @Failure 401 {object} map[string]interface{}
 // @Router /tasks [get]
 func GetTasks(c echo.Context) error {
-	userIDVal := c.Get("userId")
-	userID, ok := userIDVal.(uuid.UUID)
-	if !ok {
+	userID, err := utils.GetUserID(c)
+	if err != nil {
 		return utils.JSONError(c, http.StatusUnauthorized, "Unauthorized")
 	}
 
@@ -192,9 +190,8 @@ func GetTasks(c echo.Context) error {
 
 // GetTask fetches a single task by ID
 func GetTask(c echo.Context) error {
-	userIDVal := c.Get("userId")
-	userID, ok := userIDVal.(uuid.UUID)
-	if !ok {
+	userID, err := utils.GetUserID(c)
+	if err != nil {
 		return utils.JSONError(c, http.StatusUnauthorized, "Unauthorized")
 	}
 
@@ -214,9 +211,8 @@ func GetTask(c echo.Context) error {
 
 // UpdateTask updates an existing task
 func UpdateTask(c echo.Context) error {
-	userIDVal := c.Get("userId")
-	userID, ok := userIDVal.(uuid.UUID)
-	if !ok {
+	userID, err := utils.GetUserID(c)
+	if err != nil {
 		return utils.JSONError(c, http.StatusUnauthorized, "Unauthorized")
 	}
 
@@ -269,9 +265,8 @@ func UpdateTask(c echo.Context) error {
 
 // CompleteTask marks a task as completed
 func CompleteTask(c echo.Context) error {
-	userIDVal := c.Get("userId")
-	userID, ok := userIDVal.(uuid.UUID)
-	if !ok {
+	userID, err := utils.GetUserID(c)
+	if err != nil {
 		return utils.JSONError(c, http.StatusUnauthorized, "Unauthorized")
 	}
 
@@ -305,9 +300,8 @@ func CompleteTask(c echo.Context) error {
 
 // DeleteTask soft-deletes a task
 func DeleteTask(c echo.Context) error {
-	userIDVal := c.Get("userId")
-	userID, ok := userIDVal.(uuid.UUID)
-	if !ok {
+	userID, err := utils.GetUserID(c)
+	if err != nil {
 		return utils.JSONError(c, http.StatusUnauthorized, "Unauthorized")
 	}
 

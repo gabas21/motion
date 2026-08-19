@@ -2,6 +2,7 @@ package config
 
 import (
 	"log"
+	"net/url"
 	"os"
 	"strings"
 
@@ -42,12 +43,14 @@ type Config struct {
 	AdminEmail           string
 	AdminPassword        string
 	SentryDSN            string
-	TripayApiKey         string
-	TripayPrivateKey     string
-	TripayMerchantCode   string
-	TripayApiURL         string
+	MidtransServerKey    string
+	MidtransClientKey    string
+	MidtransIsProduction bool
+	MidtransSnapURL      string
 	RedisHost            string
 	RedisPort            string
+	RedisPassword        string
+	EnforceBYOKForNonAdmin bool
 }
 
 var AppConfig *Config
@@ -109,7 +112,7 @@ func LoadConfig() {
 	smtpHost := getEnv("SMTP_HOST", "localhost")
 	if env == "production" {
 		if smtpHost == "localhost" || smtpHost == "" {
-			log.Println("[WARNING] SMTP_HOST belum dikonfigurasi untuk production! Fitur pengiriman email (verifikasi, dll) tidak akan berfungsi.")
+			log.Println("FATAL: SMTP_HOST belum dikonfigurasi untuk production! Verifikasi email tidak akan berfungsi. Set SMTP_HOST di Railway environment variables.")
 		}
 	}
 
@@ -154,12 +157,14 @@ func LoadConfig() {
 		AdminEmail:         adminEmail,
 		AdminPassword:      adminPass,
 		SentryDSN:          getEnv("SENTRY_DSN", ""),
-		TripayApiKey:       getEnv("TRIPAY_API_KEY", "DEV-your-tripay-api-key"),
-		TripayPrivateKey:   getEnv("TRIPAY_PRIVATE_KEY", "your-tripay-private-key"),
-		TripayMerchantCode: getEnv("TRIPAY_MERCHANT_CODE", "T12345"),
-		TripayApiURL:       getEnv("TRIPAY_API_URL", "https://tripay.co.id/api-sandbox"),
-		RedisHost:          getEnv("REDIS_HOST", "localhost"),
-		RedisPort:          getEnv("REDIS_PORT", "6379"),
+		MidtransServerKey:    getEnv("MIDTRANS_SERVER_KEY", "SB-Mid-server-DEV-KEY-CHANGE-ME"),
+		MidtransClientKey:    getEnv("MIDTRANS_CLIENT_KEY", "SB-Mid-client-DEV-KEY-CHANGE-ME"),
+		MidtransIsProduction: getEnv("MIDTRANS_IS_PRODUCTION", "false") == "true",
+		MidtransSnapURL:      getEnv("MIDTRANS_SNAP_URL", "https://app.sandbox.midtrans.com/snap/snap.js"),
+		RedisHost:          resolveRedisHost(),
+		RedisPort:          resolveRedisPort(),
+		RedisPassword:      resolveRedisPassword(),
+		EnforceBYOKForNonAdmin: getEnv("ENFORCE_BYOK_FOR_NON_ADMIN", "true") != "false",
 	}
 
 	// Inisialisasi kunci enkripsi dan JWT secara runtime untuk memecah siklus import
@@ -173,3 +178,56 @@ func getEnv(key, fallback string) string {
 	}
 	return fallback
 }
+
+// resolveRedisHost mengambil host Redis dari REDIS_PRIVATE_URL atau REDIS_URL
+// (keduanya di-inject otomatis oleh Railway saat service Redis dihubungkan),
+// dengan fallback ke REDIS_HOST / "localhost".
+func resolveRedisHost() string {
+	for _, envKey := range []string{"REDIS_PRIVATE_URL", "REDIS_URL"} {
+		if rawURL := os.Getenv(envKey); rawURL != "" {
+			if u, err := url.Parse(rawURL); err == nil && u.Hostname() != "" {
+				log.Printf("[Config] Redis host resolved dari %s: %s", envKey, u.Hostname())
+				return u.Hostname()
+			}
+		}
+	}
+	return getEnv("REDIS_HOST", "localhost")
+}
+
+// resolveRedisPort mengambil port Redis dari REDIS_PRIVATE_URL atau REDIS_URL,
+// dengan fallback ke REDIS_PORT / "6379".
+func resolveRedisPort() string {
+	for _, envKey := range []string{"REDIS_PRIVATE_URL", "REDIS_URL"} {
+		if rawURL := os.Getenv(envKey); rawURL != "" {
+			if u, err := url.Parse(rawURL); err == nil && u.Port() != "" {
+				return u.Port()
+			}
+		}
+	}
+	return getEnv("REDIS_PORT", "6379")
+}
+
+// resolveRedisURL mengembalikan full URL Redis jika diset
+func resolveRedisURL() string {
+	for _, envKey := range []string{"REDIS_PRIVATE_URL", "REDIS_URL"} {
+		if val := os.Getenv(envKey); val != "" {
+			return val
+		}
+	}
+	return ""
+}
+
+// resolveRedisPassword mengambil password dari URL jika ada
+func resolveRedisPassword() string {
+	for _, envKey := range []string{"REDIS_PRIVATE_URL", "REDIS_URL"} {
+		if rawURL := os.Getenv(envKey); rawURL != "" {
+			if u, err := url.Parse(rawURL); err == nil {
+				if pass, ok := u.User.Password(); ok {
+					return pass
+				}
+			}
+		}
+	}
+	return getEnv("REDIS_PASSWORD", "")
+}
+

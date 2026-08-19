@@ -6,8 +6,8 @@
   --background: #F0F6FC; /* Fresh Sky Linen - bright, clean, fun blue-tinted white */
   --foreground: #1D2A44; /* Deep Indigo Charcoal - premium navy black, high readability */
   
-  --font-heading: var(--font-fredoka), 'Fredoka', sans-serif;
-  --font-body: var(--font-nunito), 'Nunito', sans-serif;
+  --font-heading: var(--font-fredoka), 'Fredoka', cursive, sans-serif;
+  --font-body: var(--font-quicksand), 'Quicksand', sans-serif;
   --font-mono: var(--font-mono), 'Space Mono', monospace;
 
   /* Warna-warna Bright & Fun Accents (Vibrant Blue Dominant Palette) */
@@ -22,10 +22,51 @@
   
   --primary: #0E86D4; /* Primary Sea Blue */
   --primary-hover: #0A67A3;
+
+  /* Layout & Navigation tokens */
+  --sidebar-width: 256px;
+  --mobile-nav-height: 72px;
+
+  /* Shadow hierarchy tokens */
+  --shadow-neo-primary: 4px 4px 0px 0px #1D2A44;
+  --shadow-neo-secondary: 2px 2px 0px 0px #1D2A44;
+
+  /* Radius tokens */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+
+  /* Motion & Easing Design Engineering Tokens */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Responsive press feedback (Emil Design Engineering & Apple Fluid Design) */
+.btn-press, button:not([disabled]), a.icon-btn, .neo-btn:not([disabled]) {
+  transition: transform 140ms var(--ease-out), box-shadow 140ms var(--ease-out), background-color 140ms ease;
+}
+.btn-press:active, button:active:not([disabled]), a.icon-btn:active, .neo-btn:active:not([disabled]) {
+  transform: scale(0.97);
+}
+
+.dark {
+  --background: #0F172A;
+  --foreground: #F8FAFC;
+  --neo-yellow: #F59E0B;
+  --neo-violet: #A78BFA;
+  --neo-mint: #06B6D4;
+  --neo-pink: #F472B6;
+  --neo-blue: #38BDF8;
+  --neo-orange: #FB923C;
+  --primary: #38BDF8;
+  --primary-hover: #0EA5E9;
 }
 
 html {
   font-size: 16px;
+  scroll-behavior: smooth;
 }
 
 @media (min-width: 1024px) {
@@ -66,12 +107,15 @@ body {
   overflow-x: hidden;
   position: relative;
   min-height: 100vh;
+  /* Paksa GPU compositing agar scroll tidak drop frame */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* EFEK GLOW DI LATAR BELAKANG */
+/* EFEK GLOW DI LATAR BELAKANG — diisolasi di fixed pseudo-element agar tidak trigger repaint saat scroll */
 body::before {
   content: "";
-  position: absolute;
+  position: fixed;
   top: 15%;
   left: 30%;
   width: 500px;
@@ -80,11 +124,14 @@ body::before {
   z-index: -1;
   pointer-events: none;
   filter: blur(60px);
+  will-change: transform;
+  transform: translateZ(0);
+  contain: layout style paint;
 }
 
 body::after {
   content: "";
-  position: absolute;
+  position: fixed;
   bottom: 20%;
   right: 25%;
   width: 600px;
@@ -93,6 +140,9 @@ body::after {
   z-index: -1;
   pointer-events: none;
   filter: blur(80px);
+  will-change: transform;
+  transform: translateZ(0);
+  contain: layout style paint;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -160,8 +210,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .neo-btn:active {
-  transform: translateY(0.5px) !important;
-  box-shadow: 0 1px 2px var(--neo-yellow-glow) !important;
+  transform: translate(2px, 2px) !important;
+  box-shadow: 2px 2px 0px 0px #1D2A44 !important;
 }
 
 /* KOLOM MASUKAN PREMIUM NEOBRUTALISM */
@@ -405,5 +455,748 @@ h1, h2, h3, h4, h5, h6 {
 
 .animate-fadeIn {
   animation: fadeInUp 0.4s ease-out both;
+}
+
+/* ─── PWA & MOBILE RESPONSIVE OPTIMIZATIONS (WCAG 2.1 ACCESSIBILITY ENHANCED) ─── */
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 3px solid #0E86D4 !important;
+  outline-offset: 2px !important;
+  border-radius: 8px;
+}
+
+.touch-scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+}
+
+.safe-area-inset-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 12px);
+}
+
+.safe-area-inset-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+@media (max-width: 768px) {
+  main {
+    padding-bottom: calc(100px + env(safe-area-inset-bottom, 12px)) !important;
+  }
+
+  /* WCAG 2.1 AA Touch Target Minimum (44px x 44px) */
+  button, a, input, select, textarea, [role="button"], [role="tab"] {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  .icon-btn, .btn-icon {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+}
+
+@media (hover: none) {
+  .neo-card-hover:hover {
+    transform: none !important;
+    box-shadow: 0 8px 30px var(--neo-yellow-glow) !important;
+  }
+  .neo-btn:hover {
+    transform: none !important;
+    background: #FFFFFF !important;
+  }
+}
+
+@media (max-width: 768px) {
+  ::-webkit-scrollbar {
+    display: none;
+  }
+  * {
+    scrollbar-width: none;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ⚔️  RPG DARK FANTASY DESIGN SYSTEM — Motion Dashboard
+   Dark epic theme: deep navy, glowing purple/gold/cyan accents, alive UI
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* RPG Color Tokens */
+  --rpg-bg:           #080C14;
+  --rpg-panel:        #0D1221;
+  --rpg-card:         #111827;
+  --rpg-card-hover:   #161F35;
+  --rpg-border:       rgba(99, 102, 241, 0.2);
+  --rpg-border-gold:  rgba(245, 158, 11, 0.3);
+  --rpg-border-cyan:  rgba(6, 182, 212, 0.25);
+  --rpg-border-green: rgba(16, 185, 129, 0.3);
+  --rpg-border-red:   rgba(239, 68, 68, 0.4);
+
+  /* Glow Colors */
+  --glow-purple:      #7C3AED;
+  --glow-gold:        #F59E0B;
+  --glow-cyan:        #06B6D4;
+  --glow-green:       #10B981;
+  --glow-red:         #EF4444;
+  --glow-pink:        #EC4899;
+
+  /* RPG Text Colors */
+  --rpg-text:         #E2E8F0;
+  --rpg-text-sub:     #64748B;
+  --rpg-text-muted:   #334155;
+  --rpg-text-gold:    #F59E0B;
+  --rpg-text-cyan:    #06B6D4;
+  --rpg-text-purple:  #A78BFA;
+  --rpg-text-green:   #34D399;
+  --rpg-text-red:     #F87171;
+
+  /* Fonts */
+  --font-rpg-title:   var(--font-cinzel), 'Cinzel', 'Fredoka', serif;
+  --font-rpg-ui:      var(--font-orbitron), 'Orbitron', monospace;
+  --font-rpg-body:    var(--font-quicksand), 'Quicksand', sans-serif;
+  --font-rpg-mono:    var(--font-mono), 'Space Mono', monospace;
+}
+
+/* ─── RPG KEYFRAME ANIMATIONS ───────────────────────────────────────────────── */
+
+@keyframes rpg-glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px var(--glow-purple), 0 0 20px rgba(124, 58, 237, 0.15), inset 0 1px 0 rgba(167, 139, 250, 0.1); }
+  50%       { box-shadow: 0 0 16px var(--glow-purple), 0 0 40px rgba(124, 58, 237, 0.25), inset 0 1px 0 rgba(167, 139, 250, 0.2); }
+}
+
+@keyframes rpg-glow-gold {
+  0%, 100% { box-shadow: 0 0 8px var(--glow-gold), 0 0 20px rgba(245, 158, 11, 0.15); }
+  50%       { box-shadow: 0 0 16px var(--glow-gold), 0 0 40px rgba(245, 158, 11, 0.3); }
+}
+
+@keyframes rpg-glow-cyan {
+  0%, 100% { box-shadow: 0 0 8px var(--glow-cyan), 0 0 20px rgba(6, 182, 212, 0.15); }
+  50%       { box-shadow: 0 0 16px var(--glow-cyan), 0 0 40px rgba(6, 182, 212, 0.3); }
+}
+
+@keyframes rpg-glow-green {
+  0%, 100% { box-shadow: 0 0 6px var(--glow-green), 0 0 15px rgba(16, 185, 129, 0.2); }
+  50%       { box-shadow: 0 0 12px var(--glow-green), 0 0 30px rgba(16, 185, 129, 0.35); }
+}
+
+@keyframes rpg-glow-red {
+  0%, 100% { box-shadow: 0 0 8px var(--glow-red), 0 0 20px rgba(239, 68, 68, 0.2); }
+  50%       { box-shadow: 0 0 20px var(--glow-red), 0 0 50px rgba(239, 68, 68, 0.4); }
+}
+
+@keyframes xp-fill {
+  from { width: 0%; opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes xp-shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes quest-complete {
+  0%   { transform: scale(1); opacity: 1; }
+  25%  { transform: scale(1.15); background: rgba(16, 185, 129, 0.3); }
+  75%  { transform: scale(0.95); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes boss-alert {
+  0%, 100% { border-color: rgba(239, 68, 68, 0.4); }
+  50%       { border-color: rgba(239, 68, 68, 0.9); }
+}
+
+@keyframes float-orb {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-6px); }
+}
+
+@keyframes spin-ring {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes streak-flame {
+  0%, 100% { transform: scaleY(1) rotate(-2deg); }
+  50%       { transform: scaleY(1.1) rotate(2deg); }
+}
+
+@keyframes particle-rise {
+  0%   { transform: translateY(0) translateX(0) scale(1); opacity: 0.8; }
+  100% { transform: translateY(-80px) translateX(var(--px, 20px)) scale(0); opacity: 0; }
+}
+
+@keyframes rpg-scanline {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(200%); }
+}
+
+@keyframes number-count-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes level-ring-draw {
+  from { stroke-dashoffset: 220; }
+  to   { stroke-dashoffset: var(--ring-offset, 0); }
+}
+
+@keyframes rpg-slide-in {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes rpg-fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── RPG CARD BASE ─────────────────────────────────────────────────────────── */
+
+.rpg-card {
+  background: linear-gradient(135deg, rgba(17, 24, 39, 0.95) 0%, rgba(13, 18, 33, 0.98) 100%);
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  border-radius: 16px;
+  box-shadow:
+    0 0 0 1px rgba(99, 102, 241, 0.06),
+    0 4px 24px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.rpg-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(167, 139, 250, 0.4), transparent);
+  pointer-events: none;
+}
+
+.rpg-card:hover {
+  border-color: rgba(99, 102, 241, 0.35);
+  box-shadow:
+    0 0 0 1px rgba(99, 102, 241, 0.12),
+    0 8px 40px rgba(0, 0, 0, 0.5),
+    0 0 30px rgba(124, 58, 237, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transform: translateY(-1px);
+}
+
+/* Gold variant */
+.rpg-card-gold {
+  background: linear-gradient(135deg, rgba(17, 24, 39, 0.95) 0%, rgba(18, 14, 5, 0.98) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 16px;
+  box-shadow:
+    0 0 0 1px rgba(245, 158, 11, 0.08),
+    0 4px 24px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.rpg-card-gold::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.5), transparent);
+  pointer-events: none;
+}
+
+/* Cyan variant */
+.rpg-card-cyan {
+  background: linear-gradient(135deg, rgba(17, 24, 39, 0.95) 0%, rgba(5, 18, 22, 0.98) 100%);
+  border: 1px solid rgba(6, 182, 212, 0.2);
+  border-radius: 16px;
+  box-shadow:
+    0 0 0 1px rgba(6, 182, 212, 0.06),
+    0 4px 24px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.rpg-card-cyan::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(6, 182, 212, 0.5), transparent);
+  pointer-events: none;
+}
+
+/* ─── QUEST CARDS ──────────────────────────────────────────────────────────── */
+
+.quest-card {
+  background: rgba(17, 24, 39, 0.7);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: 12px;
+  padding: 12px 14px;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.quest-card:hover {
+  background: rgba(22, 31, 53, 0.9);
+  border-color: rgba(99, 102, 241, 0.3);
+  transform: translateX(3px);
+}
+
+.quest-card-boss {
+  background: rgba(30, 10, 10, 0.8);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 12px;
+  padding: 12px 14px;
+  animation: boss-alert 2s ease-in-out infinite;
+  position: relative;
+  overflow: hidden;
+}
+
+.quest-card-boss::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.6), transparent);
+}
+
+/* ─── RPG BUTTONS ───────────────────────────────────────────────────────────── */
+
+.rpg-btn {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.15) 0%, rgba(99, 102, 241, 0.1) 100%);
+  border: 1px solid rgba(124, 58, 237, 0.35);
+  color: #A78BFA;
+  border-radius: 10px;
+  font-family: var(--font-rpg-ui);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  text-transform: uppercase;
+}
+
+.rpg-btn:hover {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.3) 0%, rgba(99, 102, 241, 0.2) 100%);
+  border-color: rgba(124, 58, 237, 0.6);
+  box-shadow: 0 0 20px rgba(124, 58, 237, 0.25);
+  color: #C4B5FD;
+  transform: translateY(-1px);
+}
+
+.rpg-btn-gold {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.1) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #FCD34D;
+  border-radius: 10px;
+  font-family: var(--font-rpg-ui);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  text-transform: uppercase;
+}
+
+.rpg-btn-gold:hover {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.3) 0%, rgba(217, 119, 6, 0.2) 100%);
+  border-color: rgba(245, 158, 11, 0.6);
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.25);
+  color: #FDE68A;
+  transform: translateY(-1px);
+}
+
+.rpg-btn-green {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.1) 100%);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34D399;
+  border-radius: 10px;
+  font-family: var(--font-rpg-ui);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  text-transform: uppercase;
+}
+
+.rpg-btn-green:hover {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.3) 0%, rgba(5, 150, 105, 0.2) 100%);
+  border-color: rgba(16, 185, 129, 0.6);
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+  color: #6EE7B7;
+  transform: translateY(-1px);
+}
+
+.rpg-btn-danger {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(185, 28, 28, 0.1) 100%);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #F87171;
+  border-radius: 10px;
+  font-family: var(--font-rpg-ui);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  text-transform: uppercase;
+}
+
+.rpg-btn-danger:hover {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.3) 0%, rgba(185, 28, 28, 0.2) 100%);
+  border-color: rgba(239, 68, 68, 0.6);
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+  color: #FCA5A5;
+  transform: translateY(-1px);
+}
+
+/* ─── RPG INPUT ─────────────────────────────────────────────────────────────── */
+
+.rpg-input {
+  background: rgba(8, 12, 20, 0.8) !important;
+  border: 1px solid rgba(99, 102, 241, 0.2) !important;
+  border-radius: 10px !important;
+  color: #E2E8F0 !important;
+  font-family: var(--font-rpg-body) !important;
+  font-weight: 600 !important;
+  transition: all 0.2s ease !important;
+}
+
+.rpg-input:focus {
+  outline: none !important;
+  border-color: rgba(124, 58, 237, 0.5) !important;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12), 0 0 15px rgba(124, 58, 237, 0.1) !important;
+  background: rgba(12, 18, 30, 0.9) !important;
+}
+
+.rpg-input::placeholder {
+  color: rgba(100, 116, 139, 0.7) !important;
+}
+
+/* ─── RPG BADGES ────────────────────────────────────────────────────────────── */
+
+.rpg-badge-main {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.2), rgba(99, 102, 241, 0.1));
+  border: 1px solid rgba(124, 58, 237, 0.4);
+  color: #A78BFA;
+  font-family: var(--font-rpg-ui);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rpg-badge-side {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(8, 145, 178, 0.08));
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  color: #67E8F9;
+  font-family: var(--font-rpg-ui);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rpg-badge-boss {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(185, 28, 28, 0.15));
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  color: #FCA5A5;
+  font-family: var(--font-rpg-ui);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  animation: boss-alert 2s ease-in-out infinite;
+}
+
+.rpg-badge-xp {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(217, 119, 6, 0.1));
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #FCD34D;
+  font-family: var(--font-rpg-mono);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.rpg-badge-green {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.08));
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34D399;
+  font-family: var(--font-rpg-ui);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ─── RPG XP BAR ────────────────────────────────────────────────────────────── */
+
+.rpg-xp-track {
+  background: rgba(8, 12, 20, 0.8);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+
+.rpg-xp-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7C3AED, #A78BFA, #C4B5FD, #A78BFA, #7C3AED);
+  background-size: 200% 100%;
+  animation: xp-shimmer 3s linear infinite;
+  position: relative;
+}
+
+.rpg-xp-fill::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 6px; height: 100%;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 999px;
+  filter: blur(3px);
+}
+
+/* ─── RPG STAT CARDS ────────────────────────────────────────────────────────── */
+
+.rpg-stat-card {
+  background: linear-gradient(135deg, rgba(17, 24, 39, 0.9) 0%, rgba(13, 18, 33, 0.95) 100%);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: 14px;
+  padding: 16px;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.rpg-stat-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.3), transparent);
+}
+
+.rpg-stat-card:hover {
+  border-color: rgba(99, 102, 241, 0.35);
+  box-shadow: 0 0 30px rgba(124, 58, 237, 0.1);
+  transform: translateY(-2px);
+}
+
+/* ─── HERO STATUS PANEL ─────────────────────────────────────────────────────── */
+
+.rpg-hero-panel {
+  background: linear-gradient(135deg, #0D1221 0%, #0A0F1E 50%, #0D1221 100%);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.rpg-hero-panel::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(167, 139, 250, 0.6), rgba(6, 182, 212, 0.3), transparent);
+}
+
+.rpg-hero-panel::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 80px;
+  background: radial-gradient(ellipse at 50% 100%, rgba(124, 58, 237, 0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* ─── RPG DIVIDER ───────────────────────────────────────────────────────────── */
+
+.rpg-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.2), rgba(6, 182, 212, 0.15), transparent);
+  margin: 0;
+}
+
+/* ─── TIMELINE DOT ──────────────────────────────────────────────────────────── */
+
+.rpg-timeline-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(167, 139, 250, 0.8);
+  background: #7C3AED;
+  box-shadow: 0 0 8px rgba(124, 58, 237, 0.6);
+  flex-shrink: 0;
+}
+
+.rpg-timeline-dot-event {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(6, 182, 212, 0.8);
+  background: #06B6D4;
+  box-shadow: 0 0 8px rgba(6, 182, 212, 0.6);
+  flex-shrink: 0;
+}
+
+.rpg-timeline-line {
+  width: 1px;
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.4) 0%, rgba(99, 102, 241, 0.1) 100%);
+  flex: 1;
+  min-height: 20px;
+}
+
+/* ─── RPG AVATAR ────────────────────────────────────────────────────────────── */
+
+.rpg-avatar-ring {
+  animation: rpg-glow-pulse 3s ease-in-out infinite;
+}
+
+.rpg-float {
+  animation: float-orb 4s ease-in-out infinite;
+}
+
+.rpg-streak-flame {
+  animation: streak-flame 0.8s ease-in-out infinite;
+  display: inline-block;
+}
+
+/* ─── ANIMATE HELPERS ───────────────────────────────────────────────────────── */
+
+.rpg-animate-slide {
+  animation: rpg-slide-in 0.4s ease-out both;
+}
+
+.rpg-animate-up {
+  animation: rpg-fade-up 0.4s ease-out both;
+}
+
+.rpg-number-pop {
+  animation: number-count-up 0.5s ease-out both;
+}
+
+.rpg-quest-complete {
+  animation: quest-complete 0.5s ease-in-out;
+}
+
+/* ─── SCROLLBAR OVERRIDE FOR DARK PANELS ───────────────────────────────────── */
+
+.rpg-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.rpg-scroll::-webkit-scrollbar-track {
+  background: rgba(8, 12, 20, 0.5);
+}
+.rpg-scroll::-webkit-scrollbar-thumb {
+  background: rgba(124, 58, 237, 0.3);
+  border-radius: 999px;
+}
+.rpg-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(124, 58, 237, 0.6);
+}
+
+/* ─── GLOW HELPERS ─────────────────────────────────────────────────────────── */
+.glow-purple { animation: rpg-glow-pulse 3s ease-in-out infinite; }
+.glow-gold   { animation: rpg-glow-gold  3s ease-in-out infinite; }
+.glow-cyan   { animation: rpg-glow-cyan  3s ease-in-out infinite; }
+.glow-green  { animation: rpg-glow-green 3s ease-in-out infinite; }
+.glow-red    { animation: rpg-glow-red   2s ease-in-out infinite; }
+
+/* ─── RPG BACKGROUND (untuk dashboard page) ─────────────────────────────────── */
+
+.rpg-bg {
+  background: #080C14;
+  background-image:
+    radial-gradient(ellipse at 20% 0%, rgba(124, 58, 237, 0.07) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 0%, rgba(6, 182, 212, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 100%, rgba(245, 158, 11, 0.04) 0%, transparent 60%);
+  min-height: 100vh;
+}
+
+/* ─── MOBILE ZEN RPG ─────────────────────────────────────────────────────────── */
+.rpg-zen-tab-active {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.25), rgba(99, 102, 241, 0.15));
+  border: 1px solid rgba(124, 58, 237, 0.4);
+  color: #A78BFA;
+  box-shadow: 0 0 15px rgba(124, 58, 237, 0.15);
+}
+
+.rpg-zen-tab-inactive {
+  background: transparent;
+  border: 1px solid transparent;
+  color: rgba(100, 116, 139, 0.8);
+}
+
+.rpg-zen-tab-inactive:hover {
+  color: #94A3B8;
+  background: rgba(30, 41, 59, 0.3);
 }
 

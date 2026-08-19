@@ -2,6 +2,7 @@ package services
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -263,11 +264,27 @@ func handleSyncCommand(chatIDStr string, text string) {
 
 	// Cari user dengan OTP yang valid dan belum kedaluwarsa
 	var user models.User
-	now := time.Now()
-	err := config.DB.Where("telegram_otp = ? AND telegram_otp_exp > ?", otpCode, now).First(&user).Error
-	if err != nil {
-		SendTelegramMessage(chatIDStr, "❌ <b>Kode OTP Salah atau Sudah Kedaluwarsa!</b>\nSilakan generate kode baru di halaman Pengaturan Aplikasi Motion Anda.", nil)
-		return
+	found := false
+
+	if config.IsRedisAvailable() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		userIDStr, err := config.RedisClient.Get(ctx, "telegram:otp:"+otpCode).Result()
+		cancel()
+		if err == nil && userIDStr != "" {
+			if err := config.DB.First(&user, "id = ?", userIDStr).Error; err == nil {
+				found = true
+			}
+		}
+	}
+
+	if !found {
+		// Fallback ke pencarian DB
+		now := time.Now()
+		err := config.DB.Where("telegram_otp = ? AND telegram_otp_exp > ?", otpCode, now).First(&user).Error
+		if err != nil {
+			SendTelegramMessage(chatIDStr, "❌ <b>Kode OTP Salah atau Sudah Kedaluwarsa!</b>\nSilakan generate kode baru di halaman Pengaturan Aplikasi Motion Anda.", nil)
+			return
+		}
 	}
 
 	// Simpan Chat ID Telegram pengguna ke dalam model database User
@@ -277,6 +294,13 @@ func handleSyncCommand(chatIDStr string, text string) {
 	if err := config.DB.Save(&user).Error; err != nil {
 		SendTelegramMessage(chatIDStr, "❌ Gagal menyimpan koneksi Telegram. Silakan coba beberapa saat lagi.", nil)
 		return
+	}
+
+	// Hapus OTP dari Redis setelah sinkronisasi berhasil
+	if config.IsRedisAvailable() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		config.RedisClient.Del(ctx, "telegram:otp:"+otpCode)
+		cancel()
 	}
 
 	welcomeMsg := fmt.Sprintf("🎉 <b>Koneksi Sukses!</b>\n\nHalo <b>%s</b>, akun Telegram Anda berhasil terhubung dengan akun Motion Anda.\n\n"+
@@ -796,4 +820,28 @@ func sendChatAction(chatIDStr string, action string) {
 	}
 	jsonPayload, _ := json.Marshal(payload)
 	http.Post(url, "application/json", bytes.NewBuffer(jsonPayload))
+}
+
+// SendTelegramNotification mengirim pesan teks Markdown ke Telegram chat ID tertentu
+func SendTelegramNotification(chatIDStr string, message string) error {
+	token := config.AppConfig.TelegramBotToken
+	if token == "" || chatIDStr == "" {
+		return fmt.Errorf("bot token or chat ID is empty")
+	}
+	url := fmt.Sprintf("%s/bot%s/sendMessage", telegramHost, token)
+	payload := map[string]interface{}{
+		"chat_id":    chatIDStr,
+		"text":       message,
+		"parse_mode": "Markdown",
+	}
+	jsonPayload, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonPayload))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return nil
 }

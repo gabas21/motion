@@ -22,6 +22,7 @@ import CustomSelect from '../ui/CustomSelect';
 import OnboardingTooltip from '../Onboarding/OnboardingTooltip';
 import WeLearnFeatureTour from '../Onboarding/WeLearnFeatureTour';
 import WeLearnHelpButton from '../Onboarding/WeLearnHelpButton';
+import UrgentBanner from './UrgentBanner';
 
 const statusFilterOptions = [
   { value: 'all', label: 'Semua Status' },
@@ -195,7 +196,7 @@ function AssignmentRow({ assignment, onAskAsep }: {
 
   return (
     <div
-      className={`flex items-center gap-2 px-3 py-2.5 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 ${borderStyle} ${rowBg} cursor-grab active:cursor-grabbing group`}
+      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-3.5 py-3 rounded-2xl transition-all duration-200 hover:-translate-y-0.5 ${borderStyle} ${rowBg} cursor-grab active:cursor-grabbing group`}
       draggable
       onDragStart={(e) => {
         e.dataTransfer.setData('text/plain', buildAssignmentContext(assignment));
@@ -209,55 +210,66 @@ function AssignmentRow({ assignment, onAskAsep }: {
         setTimeout(() => document.body.removeChild(ghost), 0);
       }}
     >
-      <span className="p-1.5 bg-white border border-black rounded-lg shrink-0 scale-90 group-hover:scale-100 transition-transform">
-        {eventIcon(assignment.eventType)}
-      </span>
+      {/* Top / Left Section: Icon + Full Readable Name + Due Date */}
+      <div className="flex items-start gap-2.5 min-w-0 flex-1">
+        <span className="p-1.5 bg-white border border-black rounded-lg shrink-0 mt-0.5 scale-95 group-hover:scale-100 transition-transform">
+          {eventIcon(assignment.eventType)}
+        </span>
 
-      <div className="flex-1 min-w-0">
-        <p className="text-xs font-black text-black truncate leading-tight group-hover:text-neoBlue transition-colors">
-          {assignment.name}
-        </p>
-        {assignment.dueDate && (
-          <p className="text-[9px] text-gray-500 mt-0.5 font-mono font-bold flex items-center gap-1">
-            <Clock size={9} /> {formatDate(assignment.dueDate)}
+        <div className="min-w-0 flex-1 text-left">
+          <p className="text-xs font-black text-black leading-snug break-words group-hover:text-neoBlue transition-colors" title={assignment.name}>
+            {assignment.name}
           </p>
-        )}
+          {assignment.dueDate && (
+            <p className="text-[10px] text-gray-600 mt-1 font-mono font-bold flex items-center gap-1">
+              <Clock size={10} className="shrink-0" /> {formatDate(assignment.dueDate)}
+            </p>
+          )}
+        </div>
       </div>
 
-      <div id="welearn-tour-assignments-header" className="flex items-center gap-1.5 shrink-0 scale-95">
-        {isLab && (
-          <span className="text-[8px] font-black px-1.5 py-0.5 rounded font-mono bg-[#C084FC] text-black border border-black shadow-[1.5px_1.5px_0px_#000] shrink-0">
-            🧪 PRAKTIKUM
+      {/* Bottom / Right Section: Badges & Action Buttons */}
+      <div id="welearn-tour-assignments-header" className="flex flex-wrap items-center gap-1.5 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-black/10 sm:border-transparent mt-1 sm:mt-0">
+        {isLab ? (
+          <span className="text-[9px] font-black px-2 py-1 rounded-xl font-mono bg-neoPink text-white border border-black shadow-[1px_1px_0px_#000] shrink-0 h-7 flex items-center animate-pulse">
+            👾 LAB BOSS (+150 XP)
+          </span>
+        ) : (
+          <span className="text-[9px] font-black px-2 py-1 rounded-xl font-mono bg-neoYellow text-black border border-black shadow-[1px_1px_0px_#000] shrink-0 h-7 flex items-center">
+            ⚔️ ACADEMIC QUEST (+100 XP)
           </span>
         )}
         {isSubmittable && assignment.dueDate && assignment.submissionStatus !== 'submitted' && (
           <span
-            className={`text-[8px] font-black px-1.5 py-0.5 rounded font-mono ${badgeColor}`}
+            className={`text-[9px] font-black px-2 py-1 rounded-xl font-mono h-7 flex items-center ${badgeColor}`}
           >
             {tl.label}
           </span>
         )}
         <StatusBadge status={assignment.submissionStatus} isSubmittable={isSubmittable} />
+        
         {assignment.url && (
           <a
             href={assignment.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="p-1.5 rounded-xl border border-black bg-white hover:bg-[#FFDE4D] hover:shadow-[1.5px_1.5px_0px_#000] active:translate-y-0.5 transition-all group/link shrink-0"
+            aria-label="Buka di WeLearn"
+            className="icon-btn min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:w-7 sm:h-7 rounded-xl border border-black bg-white hover:bg-[#FFDE4D] shadow-[1px_1px_0px_#000] active:scale-95 transition-all group/link shrink-0 flex items-center justify-center"
             title="Buka di WeLearn"
           >
-            <ExternalLink size={10} className="text-black font-black group-hover/link:translate-x-0.5 group-hover/link:-translate-y-0.5 transition-transform" />
+            <ExternalLink size={14} className="text-black font-black group-hover/link:translate-x-0.5 group-hover/link:-translate-y-0.5 transition-transform" />
           </a>
         )}
         {onAskAsep && (
           <button
             id="welearn-tour-asep-btn"
             type="button"
+            aria-label="Tanya Asep AI tentang tugas ini"
             onClick={() => onAskAsep(assignment)}
-            className="p-1.5 rounded-xl border border-black bg-neoYellow hover:bg-amber-300 hover:shadow-[1.5px_1.5px_0px_#000] active:translate-y-0.5 transition-all shrink-0 group/btn"
+            className="icon-btn min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:w-7 sm:h-7 rounded-xl border border-black bg-neoYellow hover:bg-amber-300 shadow-[1px_1px_0px_#000] active:scale-95 transition-all shrink-0 flex items-center justify-center group/btn"
             title="Tanya Asep AI tentang tugas ini"
           >
-            <Sparkles size={10} className="text-black group-hover/btn:rotate-12 transition-transform" />
+            <Sparkles size={14} className="text-black group-hover/btn:rotate-12 transition-transform" />
           </button>
         )}
       </div>
@@ -1003,6 +1015,19 @@ export default function WeLearnTab({
   const [courseFilter, setCourseFilter] = useState<string>('all');
   const [courseCategoryFilter, setCourseCategoryFilter] = useState<'all' | 'praktikum' | 'teori'>('all');
   
+  // ─── Mobile-specific states ─────────────────────────────────────
+  const [isMobile, setIsMobile] = useState(false);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [expandedMobileGroup, setExpandedMobileGroup] = useState<string | null>('overdue');
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
   const [showTour, setShowTour] = useState(false);
 
   useEffect(() => {
@@ -1393,12 +1418,13 @@ export default function WeLearnTab({
       )}
 
       {/* UNIFIED BENTO GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className={`grid gap-6 ${isMobile ? 'grid-cols-1 gap-3' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4'}`}>
         
         {/* Tile 1: Profile & Integration Status (Col-span 2) */}
         <div 
           className={cn(
-            "col-span-1 md:col-span-2 border-4 border-black rounded-3xl p-6 flex flex-col justify-between relative overflow-hidden group min-h-[220px] transition-all duration-500",
+            "col-span-1 md:col-span-2 border-4 border-black rounded-3xl flex flex-col justify-between relative overflow-hidden group transition-all duration-500",
+            isMobile ? 'p-3 min-h-0' : 'p-6 min-h-[220px]',
             isSyncing
               ? "bg-[#38BDF8] shadow-[6px_6px_0px_#000] text-black"
               : "bg-white shadow-[6px_6px_0px_#000] text-black"
@@ -1410,32 +1436,40 @@ export default function WeLearnTab({
             backgroundSize: "16px 16px"
           }}
         >
-          {/* Cyber HUD Label tags */}
-          <div className="absolute top-2 left-4 font-mono text-[8px] font-black tracking-widest text-black/45 select-none uppercase">
-            {isSyncing ? "[SYS_STATUS: SYNC_DATA_STREAM]" : "[SYS_STATUS: SYSTEM_READY]"}
-          </div>
-          <div className="absolute top-2 right-4 font-mono text-[8px] font-black tracking-widest text-black/45 select-none uppercase">
-            {"// LINK: MOODLE_WICIDA_v2"}
-          </div>
+          {/* Cyber HUD Label tags — hidden on mobile */}
+          {!isMobile && (
+            <>
+              <div className="absolute top-2 left-4 font-mono text-[8px] font-black tracking-widest text-black/45 select-none uppercase">
+                {isSyncing ? "[SYS_STATUS: SYNC_DATA_STREAM]" : "[SYS_STATUS: SYSTEM_READY]"}
+              </div>
+              <div className="absolute top-2 right-4 font-mono text-[8px] font-black tracking-widest text-black/45 select-none uppercase">
+                {"// LINK: MOODLE_WICIDA_v2"}
+              </div>
+            </>
+          )}
 
-          <div className={`absolute -right-6 -bottom-6 w-36 h-36 bg-[#C084FC]/10 rounded-full pointer-events-none transition-all duration-500 ${isSyncing ? 'opacity-0 scale-90' : 'group-hover:scale-110 opacity-100'}`} />
+          {!isMobile && (
+            <div className={`absolute -right-6 -bottom-6 w-36 h-36 bg-[#C084FC]/10 rounded-full pointer-events-none transition-all duration-500 ${isSyncing ? 'opacity-0 scale-90' : 'group-hover:scale-110 opacity-100'}`} />
+          )}
           
-          <div className={`absolute inset-0 z-0 transition-all duration-500 ${isSyncing ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-            <CircuitBoard
-              nodes={syncNodes}
-              connections={syncConnections}
-              coordWidth={400}
-              coordHeight={220}
-              pulseSpeed={isSyncing ? 0.95 : 3.5}
-              traceColor="rgba(0, 0, 0, 0.4)"
-              pulseColor="#C084FC"
-              nodeColor="#000000"
-              variant="light"
-              showGrid={false}
-              traceWidth={3.5}
-              neoBrutal={true}
-            />
-          </div>
+          {!isMobile && (
+            <div className={`absolute inset-0 z-0 transition-all duration-500 ${isSyncing ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+              <CircuitBoard
+                nodes={syncNodes}
+                connections={syncConnections}
+                coordWidth={400}
+                coordHeight={220}
+                pulseSpeed={isSyncing ? 0.95 : 3.5}
+                traceColor="rgba(0, 0, 0, 0.4)"
+                pulseColor="#C084FC"
+                nodeColor="#000000"
+                variant="light"
+                showGrid={false}
+                traceWidth={3.5}
+                neoBrutal={true}
+              />
+            </div>
+          )}
 
           <motion.div
             className="relative z-10"
@@ -1448,11 +1482,11 @@ export default function WeLearnTab({
             style={{ pointerEvents: isSyncing ? 'none' : 'auto' }}
           >
             <div className="flex items-center gap-3">
-              <div className="p-3 bg-[#C084FC] rounded-2xl border-2 border-black text-black shadow-[2.5px_2.5px_0px_#000] scale-95 shrink-0">
-                <GraduationCap size={24} className="font-black" />
+              <div className={`bg-[#C084FC] rounded-2xl border-2 border-black text-black shadow-[2.5px_2.5px_0px_#000] scale-95 shrink-0 ${isMobile ? 'p-2' : 'p-3'}`}>
+                <GraduationCap size={isMobile ? 18 : 24} className="font-black" />
               </div>
               <div className="min-w-0 text-left">
-                <h2 className="font-black text-lg sm:text-xl text-black leading-tight font-heading">INTEGRASI AKADEMIK WELEARN</h2>
+                <h2 className={`font-black text-black leading-tight font-heading ${isMobile ? 'text-sm' : 'text-lg sm:text-xl'}`}>{isMobile ? 'WELEARN WICIDA' : 'INTEGRASI AKADEMIK WELEARN'}</h2>
                 <div className="flex items-center gap-1.5 text-xs text-black mt-1 font-mono font-bold flex-wrap">
                   <Wifi size={12} className="text-[#86EFAC] animate-pulse stroke-[3] shrink-0" />
                   <span className="truncate">{(status?.moodleUsername || '').toUpperCase()}</span>
@@ -1462,32 +1496,35 @@ export default function WeLearnTab({
             </div>
           </motion.div>
 
-          <motion.div
-            className="relative z-10 mt-4"
-            initial={{ opacity: 1, y: 0 }}
-            animate={{ 
-              opacity: isSyncing ? 0 : 1, 
-              y: isSyncing ? -10 : 0
-            }}
-            transition={{ duration: 0.4, ease: "easeInOut" }}
-            style={{ pointerEvents: isSyncing ? 'none' : 'auto' }}
-          >
-            <div className="bg-[#FAF9F5] border-2 border-black rounded-2xl p-3 text-left shadow-[2.5px_2.5px_0px_#000] flex items-start gap-2.5">
-              <div className="p-1.5 bg-neoBlue/15 border-2 border-black rounded-lg shrink-0 mt-0.5 shadow-[1px_1px_0px_#000]">
-                <Info size={12} className="text-black font-black" />
+          {/* Tips card — hidden on mobile to save space */}
+          {!isMobile && (
+            <motion.div
+              className="relative z-10 mt-4"
+              initial={{ opacity: 1, y: 0 }}
+              animate={{ 
+                opacity: isSyncing ? 0 : 1, 
+                y: isSyncing ? -10 : 0
+              }}
+              transition={{ duration: 0.4, ease: "easeInOut" }}
+              style={{ pointerEvents: isSyncing ? 'none' : 'auto' }}
+            >
+              <div className="bg-[#FAF9F5] border-2 border-black rounded-2xl p-3 text-left shadow-[2.5px_2.5px_0px_#000] flex items-start gap-2.5">
+                <div className="p-1.5 bg-neoBlue/15 border-2 border-black rounded-lg shrink-0 mt-0.5 shadow-[1px_1px_0px_#000]">
+                  <Info size={12} className="text-black font-black" />
+                </div>
+                <div className="space-y-0.5">
+                  <h5 className="text-[10px] font-black text-black">💡 Tips Akses Tugas Langsung Sekali Klik</h5>
+                  <p className="text-[9.5px] font-semibold text-black/70 leading-normal">
+                    Pastikan mencentang <strong>"Ingat username"</strong> saat masuk portal WeLearn di peramban Anda agar tombol tugas dapat diakses langsung tanpa masuk ulang.
+                  </p>
+                </div>
               </div>
-              <div className="space-y-0.5">
-                <h5 className="text-[10px] font-black text-black">💡 Tips Akses Tugas Langsung Sekali Klik</h5>
-                <p className="text-[9.5px] font-semibold text-black/70 leading-normal">
-                  Pastikan mencentang <strong>"Ingat username"</strong> saat masuk portal WeLearn di peramban Anda agar tombol tugas dapat diakses langsung tanpa masuk ulang.
-                </p>
-              </div>
-            </div>
-          </motion.div>
+            </motion.div>
+          )}
 
           <motion.div
             id="welearn-tour-sync"
-            className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mt-6 z-10 relative"
+            className={`flex z-10 relative ${isMobile ? 'flex-row items-center justify-between gap-2 mt-2' : 'flex-col sm:flex-row sm:items-end justify-between gap-4 mt-6'}`}
             initial={{ opacity: 1, y: 0 }}
             animate={{ 
               opacity: isSyncing ? 0 : 1, 
@@ -1522,190 +1559,283 @@ export default function WeLearnTab({
                 disabled={isSyncing}
                 onMouseEnter={() => setIsHoveringSync(true)}
                 onMouseLeave={() => setIsHoveringSync(false)}
-                className="neo-btn bg-[#FFDE4D] disabled:bg-gray-300 disabled:shadow-none text-black text-xs font-black border-2 border-black rounded-xl px-5 py-3 flex items-center justify-center gap-2 shadow-[3px_3px_0px_#000] hover:bg-neoYellow active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0px_#000] transition-all relative overflow-hidden group w-full sm:w-auto shrink-0 cursor-pointer"
+                className={`neo-btn bg-[#FFDE4D] disabled:bg-gray-300 disabled:shadow-none text-black font-black border-2 border-black rounded-xl flex items-center justify-center gap-2 shadow-[3px_3px_0px_#000] hover:bg-neoYellow active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0px_#000] transition-all relative overflow-hidden group shrink-0 cursor-pointer ${isMobile ? 'text-[10px] px-3 py-2 w-auto' : 'text-xs px-5 py-3 w-full sm:w-auto'}`}
               >
                 <div className="absolute inset-0 w-1/2 h-full bg-white/20 transform -skew-x-12 -translate-x-full group-hover:animate-[shine_0.85s_ease-out] pointer-events-none" />
                 <span ref={syncIconRef} className="inline-flex items-center justify-center">
-                  <RefreshCw size={14} className={`text-black font-black ${isSyncing ? 'animate-spin' : ''}`} />
+                  <RefreshCw size={isMobile ? 12 : 14} className={`text-black font-black ${isSyncing ? 'animate-spin' : ''}`} />
                 </span>
-                <span>{isSyncing ? 'SINKRONISASI...' : 'SINKRONKAN SEKARANG'}</span>
+                <span>{isSyncing ? (isMobile ? 'SYNC...' : 'SINKRONISASI...') : (isMobile ? 'SYNC' : 'SINKRONKAN SEKARANG')}</span>
               </button>
             </OnboardingTooltip>
           </motion.div>
         </div>
 
-        {/* Tile 2: Completion Rate Circular Chart (Col-span 1) */}
-        <div className="col-span-1 border-3 border-black rounded-3xl p-6 bg-[#FAF9F5] shadow-[5px_5px_0px_#000] flex flex-col items-center justify-between text-center relative overflow-hidden min-h-[220px]">
-          <div className="w-full flex items-center justify-between">
-            <span className="text-[10px] font-black text-black tracking-wider font-heading uppercase">COMPLETION RATE</span>
-            <span className="p-1.5 bg-[#86EFAC] border border-black rounded-lg shadow-[1px_1px_0px_#000] scale-90">
-              <Sparkles className="text-black shrink-0 animate-pulse" size={12} />
-            </span>
-          </div>
-
-          <div className="relative flex items-center justify-center my-3">
-            <svg className="w-20 h-20 md:w-24 md:h-24 transform -rotate-90" viewBox="0 0 96 96">
-              <circle
-                cx="48"
-                cy="48"
-                r="38"
-                className="stroke-black/10"
-                strokeWidth="8"
-                fill="transparent"
-              />
-              <circle
-                cx="48"
-                cy="48"
-                r="38"
-                className="stroke-[#C084FC] transition-all duration-1000 ease-out"
-                strokeWidth="8"
-                fill="transparent"
-                strokeDasharray="238.76"
-                strokeDashoffset={238.76 - (238.76 * completionRate) / 100}
-                strokeLinecap="round"
-              />
-            </svg>
-            <div className="absolute flex flex-col items-center justify-center">
-              <span className="text-xl md:text-2xl font-black font-mono leading-none">{completionRate}%</span>
-              <span className="text-[8px] font-black text-gray-550 font-mono mt-0.5 tracking-wider">SELESAI</span>
+        {/* Tile 2: Completion Rate Circular Chart (Col-span 1) — hidden on mobile, shown as chip in stats strip */}
+        {!isMobile && (
+          <div className="col-span-1 border-3 border-black rounded-3xl p-6 bg-[#FAF9F5] shadow-[5px_5px_0px_#000] flex flex-col items-center justify-between text-center relative overflow-hidden min-h-[220px]">
+            <div className="w-full flex items-center justify-between">
+              <span className="text-[10px] font-black text-black tracking-wider font-heading uppercase">COMPLETION RATE</span>
+              <span className="p-1.5 bg-[#86EFAC] border border-black rounded-lg shadow-[1px_1px_0px_#000] scale-90">
+                <Sparkles className="text-black shrink-0 animate-pulse" size={12} />
+              </span>
             </div>
-          </div>
 
-          <p className="text-[9px] text-black font-black font-mono leading-none tracking-tight uppercase">
-            {submittedCount} DARI {assignments.length} TUGAS TERKUMPUL
-          </p>
-        </div>
-
-        {/* Tile 3: Asep AI Assistant Helper (Col-span 1) */}
-        <div className="col-span-1 border-3 border-black rounded-3xl p-5 bg-[#C084FC] shadow-[5px_5px_0px_#000] relative overflow-hidden text-black flex flex-col justify-between min-h-[220px] group">
-          <div className="absolute right-0 bottom-0 opacity-10 group-hover:scale-105 transition-transform duration-500">
-            <Sparkles size={110} />
-          </div>
-
-          <div>
-            <div className="flex items-center gap-1.5 mb-2 bg-white/20 px-2.5 py-1 rounded-lg border border-black/10 w-fit">
-              <Sparkles size={12} className="animate-spin text-neoYellow" style={{ animationDuration: '4s' }} />
-              <span className="text-[9px] font-black uppercase tracking-wider font-mono">Asep Assistant</span>
+            <div className="relative flex items-center justify-center my-3">
+              <svg className="w-20 h-20 md:w-24 md:h-24 transform -rotate-90" viewBox="0 0 96 96">
+                <circle
+                  cx="48"
+                  cy="48"
+                  r="38"
+                  className="stroke-black/10"
+                  strokeWidth="8"
+                  fill="transparent"
+                />
+                <circle
+                  cx="48"
+                  cy="48"
+                  r="38"
+                  className="stroke-[#C084FC] transition-all duration-1000 ease-out"
+                  strokeWidth="8"
+                  fill="transparent"
+                  strokeDasharray="238.76"
+                  strokeDashoffset={238.76 - (238.76 * completionRate) / 100}
+                  strokeLinecap="round"
+                />
+              </svg>
+              <div className="absolute flex flex-col items-center justify-center">
+                <span className="text-xl md:text-2xl font-black font-mono leading-none">{completionRate}%</span>
+                <span className="text-[8px] font-black text-gray-550 font-mono mt-0.5 tracking-wider">SELESAI</span>
+              </div>
             </div>
-            <p className="text-xs font-black leading-snug">
-              Bingung ngerjain tugas? Cukup seret (drag) tugas apa saja ke panel obrolan Asep AI untuk penjelasan instan!
+
+            <p className="text-[9px] text-black font-black font-mono leading-none tracking-tight uppercase">
+              {submittedCount} DARI {assignments.length} TUGAS TERKUMPUL
             </p>
           </div>
+        )}
 
-          <div className="text-[8px] font-bold font-mono tracking-widest uppercase mt-4 bg-white/30 px-2.5 py-1.5 rounded border border-black/10 text-center">
-            DRAG & DROP SUPPORTED 🎯
-          </div>
-        </div>
+        {/* Tile 3: Asep AI Assistant Helper (Col-span 1) — hidden on mobile (drag & drop not available on touch) */}
+        {!isMobile && (
+          <div className="col-span-1 border-3 border-black rounded-3xl p-5 bg-[#C084FC] shadow-[5px_5px_0px_#000] relative overflow-hidden text-black flex flex-col justify-between min-h-[220px] group">
+            <div className="absolute right-0 bottom-0 opacity-10 group-hover:scale-105 transition-transform duration-500">
+              <Sparkles size={110} />
+            </div>
 
-        {/* Tile 4: Quick Stats (Col-span 2) */}
-        <div className="col-span-1 md:col-span-2 border-3 border-black rounded-3xl p-5 bg-white shadow-[5px_5px_0px_#000] flex flex-col justify-between min-h-[200px]">
-          <span className="text-xs font-black text-black font-heading tracking-wider uppercase mb-3 flex items-center gap-1.5">
-            <Layers size={14} /> RINGKASAN AKADEMIK
-          </span>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 flex-grow">
-            {/* Stat 1: Courses */}
-            <div className="bg-neoYellow border-2 border-black rounded-2xl p-3 flex flex-col justify-between shadow-[3px_3px_0px_#1D2A44] hover:-translate-y-0.5 hover:shadow-[4.5px_4.5px_0px_#1D2A44] transition-all duration-200 relative overflow-hidden group cursor-pointer">
-              <div className="flex items-center justify-between text-black z-10 relative pointer-events-none">
-                <span className="text-[8px] font-black uppercase tracking-wider">Mata Kuliah</span>
-                <span className="p-1 bg-white border border-black rounded-lg shadow-[1px_1px_0px_#000]">
-                  <BookOpen size={12} className="text-black stroke-[2.5]" />
-                </span>
+            <div>
+              <div className="flex items-center gap-1.5 mb-2 bg-white/20 px-2.5 py-1 rounded-lg border border-black/10 w-fit">
+                <Sparkles size={12} className="animate-spin text-neoYellow" style={{ animationDuration: '4s' }} />
+                <span className="text-[9px] font-black uppercase tracking-wider font-mono">Asep Assistant</span>
               </div>
-              <p className="text-2xl font-black font-mono text-black mt-2 z-10 relative pointer-events-none">{courses.length}</p>
+              <p className="text-xs font-black leading-snug">
+                Bingung ngerjain tugas? Cukup seret (drag) tugas apa saja ke panel obrolan Asep AI untuk penjelasan instan!
+              </p>
+            </div>
+
+            <div className="text-[8px] font-bold font-mono tracking-widest uppercase mt-4 bg-white/30 px-2.5 py-1.5 rounded border border-black/10 text-center">
+              DRAG & DROP SUPPORTED 🎯
+            </div>
+          </div>
+        )}
+
+        {/* Tile 4: Quick Stats — horizontal strip on mobile, grid on desktop */}
+        <div className={`col-span-1 md:col-span-2 border-3 border-black rounded-3xl bg-white shadow-[5px_5px_0px_#000] flex flex-col justify-between ${isMobile ? 'p-3 min-h-0' : 'p-5 min-h-[200px]'}`}>
+          {!isMobile && (
+            <span className="text-xs font-black text-black font-heading tracking-wider uppercase mb-3 flex items-center gap-1.5">
+              <Layers size={14} /> RINGKASAN AKADEMIK
+            </span>
+          )}
+          <div className={isMobile ? 'grid grid-cols-5 gap-1 sm:gap-1.5 w-full' : 'grid grid-cols-2 sm:grid-cols-4 gap-4 flex-grow'}>
+            {/* Mobile completion chip */}
+            {isMobile && (
+              <div className="bg-[#C084FC] border-2 border-black rounded-xl p-1.5 flex flex-col items-center justify-center text-center shadow-[1.5px_1.5px_0px_#000] min-w-0">
+                <Sparkles size={11} className="text-white shrink-0 mb-0.5" />
+                <div className="flex flex-col items-center">
+                  <span className="text-[7px] font-black text-white/90 uppercase leading-none">PROGRESS</span>
+                  <span className="text-xs font-black font-mono text-white leading-tight mt-0.5">{completionRate}%</span>
+                </div>
+              </div>
+            )}
+            {/* Stat 1: Courses */}
+            <div className={`bg-neoYellow border-2 border-black flex items-center shadow-[2px_2px_0px_#1D2A44] transition-all duration-200 relative overflow-hidden group cursor-pointer ${isMobile ? 'rounded-xl p-1.5 flex-col justify-center text-center shadow-[1.5px_1.5px_0px_#000] min-w-0' : 'rounded-2xl p-3 flex-col justify-between hover:-translate-y-0.5 hover:shadow-[4.5px_4.5px_0px_#1D2A44]'}`}>
+              {isMobile ? (
+                <>
+                  <BookOpen size={11} className="text-black stroke-[2.5] shrink-0 mb-0.5" />
+                  <div className="flex flex-col items-center">
+                    <span className="text-[7px] font-black uppercase text-black/80 leading-none">MK</span>
+                    <span className="text-xs font-black font-mono text-black leading-tight mt-0.5">{courses.length}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between text-black z-10 relative pointer-events-none">
+                    <span className="text-[8px] font-black uppercase tracking-wider">Mata Kuliah</span>
+                    <span className="p-1 bg-white border border-black rounded-lg shadow-[1px_1px_0px_#000]">
+                      <BookOpen size={12} className="text-black stroke-[2.5]" />
+                    </span>
+                  </div>
+                  <p className="text-2xl font-black font-mono text-black mt-2 z-10 relative pointer-events-none">{courses.length}</p>
+                </>
+              )}
             </div>
             {/* Stat 2: Total Tasks */}
-            <div className="bg-neoPink border-2 border-black rounded-2xl p-3 flex flex-col justify-between shadow-[3px_3px_0px_#1D2A44] hover:-translate-y-0.5 hover:shadow-[4.5px_4.5px_0px_#1D2A44] transition-all duration-200 relative overflow-hidden group cursor-pointer">
-              <div className="flex items-center justify-between text-black z-10 relative pointer-events-none">
-                <span className="text-[8px] font-black uppercase tracking-wider">Total Tugas</span>
-                <span className="p-1 bg-white border border-black rounded-lg shadow-[1px_1px_0px_#000]">
-                  <ClipboardList size={12} className="text-black stroke-[2.5]" />
-                </span>
-              </div>
-              <p className="text-2xl font-black font-mono text-black mt-2 z-10 relative pointer-events-none">{assignments.length}</p>
+            <div className={`bg-neoPink border-2 border-black flex items-center shadow-[2px_2px_0px_#1D2A44] transition-all duration-200 relative overflow-hidden group cursor-pointer ${isMobile ? 'rounded-xl p-1.5 flex-col justify-center text-center shadow-[1.5px_1.5px_0px_#000] min-w-0' : 'rounded-2xl p-3 flex-col justify-between hover:-translate-y-0.5 hover:shadow-[4.5px_4.5px_0px_#1D2A44]'}`}>
+              {isMobile ? (
+                <>
+                  <ClipboardList size={11} className="text-black stroke-[2.5] shrink-0 mb-0.5" />
+                  <div className="flex flex-col items-center">
+                    <span className="text-[7px] font-black uppercase text-black/80 leading-none">TUGAS</span>
+                    <span className="text-xs font-black font-mono text-black leading-tight mt-0.5">{assignments.length}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between text-black z-10 relative pointer-events-none">
+                    <span className="text-[8px] font-black uppercase tracking-wider">Total Tugas</span>
+                    <span className="p-1 bg-white border border-black rounded-lg shadow-[1px_1px_0px_#000]">
+                      <ClipboardList size={12} className="text-black stroke-[2.5]" />
+                    </span>
+                  </div>
+                  <p className="text-2xl font-black font-mono text-black mt-2 z-10 relative pointer-events-none">{assignments.length}</p>
+                </>
+              )}
             </div>
             {/* Stat 3: Overdue */}
-            <div className={`${
-              overdueCount > 0 
-                ? 'bg-[#FF6B6B] shadow-[3px_3px_0px_#FF7A00] animate-pulse' 
-                : 'bg-white shadow-[3px_3px_0px_#1D2A44]'
-            } border-2 border-black rounded-2xl p-3 flex flex-col justify-between hover:-translate-y-0.5 hover:shadow-[4.5px_4.5px_0px_#1D2A44] transition-all duration-200 relative overflow-hidden group cursor-pointer`}>
-              <div className="flex items-center justify-between text-black z-10 relative pointer-events-none">
-                <span className="text-[8px] font-black uppercase tracking-wider">Terlambat</span>
-                <span className="p-1 bg-white border border-black rounded-lg shadow-[1px_1px_0px_#000]">
-                  <AlertTriangle size={12} className={overdueCount > 0 ? 'text-neoOrange stroke-[2.5]' : 'text-black stroke-[2.5]'} />
-                </span>
-              </div>
-              <p className="text-2xl font-black font-mono text-black mt-2 z-10 relative pointer-events-none">{overdueCount}</p>
+            <div className={`${overdueCount > 0 ? 'bg-[#FF6B6B] shadow-[2px_2px_0px_#FF7A00] animate-pulse' : 'bg-white shadow-[2px_2px_0px_#1D2A44]'} border-2 border-black flex items-center transition-all duration-200 relative overflow-hidden group cursor-pointer ${isMobile ? 'rounded-xl p-1.5 flex-col justify-center text-center shadow-[1.5px_1.5px_0px_#000] min-w-0' : 'rounded-2xl p-3 flex-col justify-between hover:-translate-y-0.5 hover:shadow-[4.5px_4.5px_0px_#1D2A44]'}`}>
+              {isMobile ? (
+                <>
+                  <AlertTriangle size={11} className={`shrink-0 stroke-[2.5] mb-0.5 ${overdueCount > 0 ? 'text-white' : 'text-black'}`} />
+                  <div className="flex flex-col items-center">
+                    <span className="text-[7px] font-black uppercase text-black/80 leading-none">LATE</span>
+                    <span className="text-xs font-black font-mono text-black leading-tight mt-0.5">{overdueCount}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between text-black z-10 relative pointer-events-none">
+                    <span className="text-[8px] font-black uppercase tracking-wider">Terlambat</span>
+                    <span className="p-1 bg-white border border-black rounded-lg shadow-[1px_1px_0px_#000]">
+                      <AlertTriangle size={12} className={overdueCount > 0 ? 'text-neoOrange stroke-[2.5]' : 'text-black stroke-[2.5]'} />
+                    </span>
+                  </div>
+                  <p className="text-2xl font-black font-mono text-black mt-2 z-10 relative pointer-events-none">{overdueCount}</p>
+                </>
+              )}
             </div>
             {/* Stat 4: Submitted */}
-            <div className="bg-[#86EFAC] border-2 border-black rounded-2xl p-3 flex flex-col justify-between shadow-[3px_3px_0px_#1D2A44] hover:-translate-y-0.5 hover:shadow-[4.5px_4.5px_0px_#1D2A44] transition-all duration-200 relative overflow-hidden group cursor-pointer">
-              <div className="flex items-center justify-between text-black z-10 relative pointer-events-none">
-                <span className="text-[8px] font-black uppercase tracking-wider">Terkumpul</span>
-                <span className="p-1 bg-white border border-black rounded-lg shadow-[1px_1px_0px_#000]">
-                  <CheckCircle2 size={12} className="text-black stroke-[2.5]" />
-                </span>
-              </div>
-              <p className="text-2xl font-black font-mono text-black mt-2 z-10 relative pointer-events-none">{submittedCount}</p>
+            <div className={`bg-[#86EFAC] border-2 border-black flex items-center shadow-[2px_2px_0px_#1D2A44] transition-all duration-200 relative overflow-hidden group cursor-pointer ${isMobile ? 'rounded-xl p-1.5 flex-col justify-center text-center shadow-[1.5px_1.5px_0px_#000] min-w-0' : 'rounded-2xl p-3 flex-col justify-between hover:-translate-y-0.5 hover:shadow-[4.5px_4.5px_0px_#1D2A44]'}`}>
+              {isMobile ? (
+                <>
+                  <CheckCircle2 size={11} className="text-black stroke-[2.5] shrink-0 mb-0.5" />
+                  <div className="flex flex-col items-center">
+                    <span className="text-[7px] font-black uppercase text-black/80 leading-none">DONE</span>
+                    <span className="text-xs font-black font-mono text-black leading-tight mt-0.5">{submittedCount}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between text-black z-10 relative pointer-events-none">
+                    <span className="text-[8px] font-black uppercase tracking-wider">Terkumpul</span>
+                    <span className="p-1 bg-white border border-black rounded-lg shadow-[1px_1px_0px_#000]">
+                      <CheckCircle2 size={12} className="text-black stroke-[2.5]" />
+                    </span>
+                  </div>
+                  <p className="text-2xl font-black font-mono text-black mt-2 z-10 relative pointer-events-none">{submittedCount}</p>
+                </>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Tile 5: Filters & Search (Col-span 2) */}
-        <div id="welearn-tour-filters" className="col-span-1 md:col-span-2 border-3 border-black rounded-3xl p-5 bg-white shadow-[5px_5px_0px_#000] flex flex-col justify-between min-h-[200px]">
-          <h4 className="text-xs font-black text-black font-heading tracking-wider uppercase mb-3 flex items-center gap-1.5">
-            <Filter size={12} /> PENCARIAN & FILTER DATA
-          </h4>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {/* Search query */}
-            <div className="relative">
-              <Search className="absolute left-3 top-3 text-black font-black" size={12} />
-              <input
-                type="text"
-                placeholder="Cari nama tugas..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full neo-input pl-9 pr-3 py-2 text-xs"
-              />
-            </div>
-
-            {/* Status Filter */}
-            <div className="space-y-0.5">
-              <CustomSelect
-                options={statusFilterOptions}
-                value={statusFilter}
-                onChange={setStatusFilter}
-                size="sm"
-                className="w-full"
-              />
-            </div>
-
-            {/* Course Filter */}
-            <div className="space-y-0.5">
-              <CustomSelect
-                options={courseOptions}
-                value={courseFilter}
-                onChange={setCourseFilter}
-                size="sm"
-                className="w-full"
-              />
-            </div>
+        {/* URGENT ASSIGNMENTS BANNER (Hanya merender wrapper 4-kolom jika ada tugas mendesak) */}
+        {assignments.some(a => {
+          if (!a.dueDate) return false;
+          const hoursLeft = (new Date(a.dueDate).getTime() - Date.now()) / (1000 * 60 * 60);
+          return hoursLeft > 0 && hoursLeft <= 48;
+        }) && (
+          <div className="col-span-1 md:col-span-2 lg:col-span-4">
+            <UrgentBanner assignments={assignments} />
           </div>
+        )}
 
-          <div className="flex justify-end mt-2">
-            {(searchQuery || statusFilter !== 'all' || courseFilter !== 'all') && (
+        {/* Tile 5: Filters & Search — collapsible on mobile */}
+        <div id="welearn-tour-filters" className={`col-span-1 md:col-span-2 border-3 border-black rounded-3xl bg-white shadow-[5px_5px_0px_#000] flex flex-col justify-between ${isMobile ? 'p-3 min-h-0' : 'p-5 min-h-[200px]'}`}>
+          {isMobile ? (
+            <>
               <button
-                onClick={() => {
-                  setSearchQuery('');
-                  setStatusFilter('all');
-                  setCourseFilter('all');
-                }}
-                className="text-[9px] font-black font-mono bg-[#FAF9F5] hover:bg-neoOrange border-2 border-black rounded-lg px-2.5 py-1 shadow-[1.5px_1.5px_0px_#000] active:translate-y-0.5 active:shadow-none transition-all"
+                onClick={() => setShowMobileFilters(!showMobileFilters)}
+                className="flex items-center justify-between w-full text-left cursor-pointer"
               >
-                BERSIHKAN FILTER ✕
+                <span className="text-[10px] font-black text-black font-heading tracking-wider uppercase flex items-center gap-1.5">
+                  <Filter size={11} /> FILTER & CARI
+                  {(searchQuery || statusFilter !== 'all' || courseFilter !== 'all') && (
+                    <span className="bg-[#C084FC] text-white text-[8px] font-black px-1.5 py-0.5 rounded-full border border-black">AKTIF</span>
+                  )}
+                </span>
+                <ChevronDown size={14} className={`text-black transition-transform ${showMobileFilters ? 'rotate-180' : ''}`} />
               </button>
-            )}
-          </div>
+              {showMobileFilters && (
+                <div className="mt-3 space-y-2">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-2.5 text-black font-black" size={12} />
+                    <input
+                      type="text"
+                      placeholder="Cari nama tugas..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full neo-input pl-9 pr-3 py-2 text-xs"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <CustomSelect options={statusFilterOptions} value={statusFilter} onChange={setStatusFilter} size="sm" className="w-full" />
+                    <CustomSelect options={courseOptions} value={courseFilter} onChange={setCourseFilter} size="sm" className="w-full" />
+                  </div>
+                  {(searchQuery || statusFilter !== 'all' || courseFilter !== 'all') && (
+                    <button
+                      onClick={() => { setSearchQuery(''); setStatusFilter('all'); setCourseFilter('all'); }}
+                      className="text-[9px] font-black font-mono bg-[#FAF9F5] hover:bg-neoOrange border-2 border-black rounded-lg px-2.5 py-1 shadow-[1.5px_1.5px_0px_#000] active:translate-y-0.5 active:shadow-none transition-all"
+                    >
+                      BERSIHKAN FILTER ✕
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <h4 className="text-xs font-black text-black font-heading tracking-wider uppercase mb-3 flex items-center gap-1.5">
+                <Filter size={12} /> PENCARIAN & FILTER DATA
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 text-black font-black" size={12} />
+                  <input
+                    type="text"
+                    placeholder="Cari nama tugas..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full neo-input pl-9 pr-3 py-2 text-xs"
+                  />
+                </div>
+                <div className="space-y-0.5">
+                  <CustomSelect options={statusFilterOptions} value={statusFilter} onChange={setStatusFilter} size="sm" className="w-full" />
+                </div>
+                <div className="space-y-0.5">
+                  <CustomSelect options={courseOptions} value={courseFilter} onChange={setCourseFilter} size="sm" className="w-full" />
+                </div>
+              </div>
+              <div className="flex justify-end mt-2">
+                {(searchQuery || statusFilter !== 'all' || courseFilter !== 'all') && (
+                  <button
+                    onClick={() => { setSearchQuery(''); setStatusFilter('all'); setCourseFilter('all'); }}
+                    className="text-[9px] font-black font-mono bg-[#FAF9F5] hover:bg-neoOrange border-2 border-black rounded-lg px-2.5 py-1 shadow-[1.5px_1.5px_0px_#000] active:translate-y-0.5 active:shadow-none transition-all"
+                  >
+                    BERSIHKAN FILTER ✕
+                  </button>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
       </div> {/* END OF HEADER BENTO GRID */}
@@ -1713,27 +1843,27 @@ export default function WeLearnTab({
       {/* Main Content Area (View Switcher and Cards) */}
       <div className="space-y-6">
         
-        {/* View Switcher Bento */}
-        <div className="border-3 border-black rounded-3xl p-4 bg-white shadow-[5px_5px_0px_#000] flex flex-col sm:flex-row items-center justify-between gap-4">
-          <span className="text-xs font-black text-black font-heading tracking-wider uppercase">MODUL INFORMASI UTAMA</span>
-          <div className="flex gap-2 border-2 border-black bg-slate-100 p-1 rounded-2xl shadow-[1.5px_1.5px_0px_#000] w-full sm:w-auto overflow-x-auto">
+        {/* View Switcher Bento — sticky on mobile */}
+        <div className={`border-3 border-black rounded-3xl bg-white shadow-[5px_5px_0px_#000] flex items-center justify-between ${isMobile ? 'p-2 sticky top-0 z-30 gap-2 rounded-2xl shadow-[3px_3px_0px_#000]' : 'p-4 flex-col sm:flex-row gap-4'}`}>
+          {!isMobile && <span className="text-xs font-black text-black font-heading tracking-wider uppercase">MODUL INFORMASI UTAMA</span>}
+          <div className="grid grid-cols-2 gap-1.5 border-2 border-black bg-slate-100 p-1 rounded-2xl shadow-[1.5px_1.5px_0px_#000] w-full sm:w-auto">
             {(['courses', 'all'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setView(tab)}
-                className={`flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-black rounded-xl border-2 transition-all duration-200 cursor-pointer whitespace-nowrap ${
+                className={`flex items-center justify-center gap-1.5 px-2 sm:px-4 py-2 text-[11px] sm:text-xs font-black rounded-xl border-2 transition-all duration-200 cursor-pointer w-full ${
                   view === tab
                     ? 'bg-white text-black border-black shadow-[2px_2px_0px_#000] -translate-y-0.5'
                     : 'border-transparent text-black/55 hover:text-black hover:bg-white/40'
                 }`}
               >
                 {tab === 'courses' ? (
-                  <><BookOpen size={13} /> PER MATA KULIAH</>
+                  <><BookOpen size={13} className="shrink-0" /> <span className="truncate">PER MATA KULIAH</span></>
                 ) : (
                   <>
-                    <ClipboardList size={13} /> SEMUA DAFTAR TUGAS
+                    <ClipboardList size={13} className="shrink-0" /> <span className="truncate">DAFTAR TUGAS</span>
                     {pendingCount > 0 && (
-                      <span className="ml-1.5 bg-[#FF6B6B] border border-black text-white text-[9px] font-black font-mono px-1.5 py-0.5 rounded shadow-[1px_1px_0px_#000] animate-bounce">
+                      <span className="ml-1 inline-flex items-center justify-center bg-[#FF6B6B] border border-black text-white text-[9px] font-black font-mono px-1.5 py-0.5 rounded shadow-[1px_1px_0px_#000] animate-bounce shrink-0">
                         {pendingCount}
                       </span>
                     )}

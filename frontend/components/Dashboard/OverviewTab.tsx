@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import NumberFlow from '../ui/NumberFlow';
 import { 
   Sparkles, Calendar, Clock, Plus, Zap, CheckCircle2,
   RefreshCw, MessageSquare, BookOpen, GraduationCap,
   BrainCircuit, ShieldCheck, CheckSquare, CalendarDays,
-  Send, Music, Maximize2, Minimize2
+  Send, Music, Maximize2, Minimize2, Trophy
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useAnalytics } from '../../hooks/useAnalytics';
@@ -28,6 +29,10 @@ import {
   WindIcon,
 } from '../ui/animated-weather-icons';
 import QuotaWidget from './QuotaWidget';
+import WeatherParticleCanvas from './WeatherParticleCanvas';
+import PokopiaModal from '../ui/PokopiaModal';
+import NextMissionCard from './NextMissionCard';
+import BYOKNoticeBanner from './BYOKNoticeBanner';
 
 interface Task {
   id: string;
@@ -44,9 +49,10 @@ interface Task {
 
 interface OverviewTabProps {
   onNavigateToTab: (tab: 'list' | 'calendar' | 'analytics' | 'integrations' | 'preferences' | 'welearn' | 'excuse-letter') => void;
+  tasks?: Task[];
 }
 
-// ─── WEATHER THEME DEFINITIONS ───────────────────────────────────────────────
+// â”€â”€â”€ WEATHER THEME DEFINITIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type WeatherTheme = {
   name: string;
   Icon: React.ComponentType<{ size?: number; className?: string }>;
@@ -65,7 +71,7 @@ type WeatherTheme = {
   isDark: boolean;              // is this a dark/night theme (high-contrast dark mode)
 };
 
-// ─── WEATHERAPI.COM CONDITION CODE → WMO CODE MAPPER ────────────────────────
+// â”€â”€â”€ WEATHERAPI.COM CONDITION CODE → WMO CODE MAPPER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // WeatherAPI pakai kode sendiri, kita map ke kode WMO yang sudah dipakai getWeatherTheme()
 function mapWeatherAPICode(code: number, isDay: number): number {
   if (code === 1000) return isDay ? 0 : 0;             // Clear/Sunny
@@ -88,7 +94,7 @@ function mapWeatherAPICode(code: number, isDay: number): number {
   return 3; // fallback: cloudy
 }
 
-// ─── PERCEPTION FILTER ───────────────────────────────────────────────────────
+// â”€â”€â”€ PERCEPTION FILTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Jika curah hujan sangat sedikit, jangan tampilkan tema hujan.
 // Pengguna yang melihat keluar hanya mendung tidak akan kebingungan.
 function applyPerceptionFilter(
@@ -119,7 +125,7 @@ function applyPerceptionFilter(
 function getWeatherTheme(code: number, hour: number): WeatherTheme {
   const isNight = hour < 6 || hour >= 18;
 
-  // ─── NIGHT MODE THEMES (DARK MODE) ──────────────────────────────────────────
+  // â”€â”€â”€ NIGHT MODE THEMES (DARK MODE) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (isNight) {
     if (code === 0) {
       return {
@@ -312,7 +318,7 @@ function getWeatherTheme(code: number, hour: number): WeatherTheme {
     };
   }
 
-  // ─── DAY MODE THEMES (LIGHT MODE) ───────────────────────────────────────────
+  // â”€â”€â”€ DAY MODE THEMES (LIGHT MODE) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (code === 0) {
     return {
       name: 'Cerah',
@@ -506,302 +512,10 @@ function getWeatherTheme(code: number, hour: number): WeatherTheme {
 }
 
 
-// ─── PARTICLE CANVAS ──────────────────────────────────────────────────────────
-const WeatherParticleCanvas = React.memo(function WeatherParticleCanvas({ type }: { type: WeatherTheme['particleType'] }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
 
-    let animId: number;
-    let resizeTimeout: NodeJS.Timeout;
-
-    const resize = () => {
-      if (!canvas) return;
-      const w = canvas.offsetWidth;
-      const h = canvas.offsetHeight;
-      if (canvas.width !== w || canvas.height !== h) {
-        canvas.width = w;
-        canvas.height = h;
-      }
-    };
-
-    resize();
-
-    const handleResize = () => {
-      clearTimeout(resizeTimeout);
-      resizeTimeout = setTimeout(resize, 150);
-    };
-
-    window.addEventListener('resize', handleResize);
-
-    // Create particles based on weather type (optimized counts)
-    interface Particle {
-      x: number; y: number; vx: number; vy: number;
-      size: number; opacity: number; color?: string; angle?: number;
-    }
-    const particles: Particle[] = [];
-
-    if (type === 'rain') {
-      for (let i = 0; i < 60; i++) {
-        particles.push({
-          x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height,
-          vx: -1.5,
-          vy: 14 + Math.random() * 8,
-          size: 1 + Math.random() * 1.2,
-          opacity: 0.15 + Math.random() * 0.3,
-        });
-      }
-    } else if (type === 'snow') {
-      for (let i = 0; i < 40; i++) {
-        particles.push({
-          x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height,
-          vx: (Math.random() - 0.5) * 0.5,
-          vy: 0.5 + Math.random() * 1.5,
-          size: 2 + Math.random() * 4,
-          opacity: 0.5 + Math.random() * 0.4,
-        });
-      }
-    } else if (type === 'sun') {
-      // Floating golden motes
-      for (let i = 0; i < 20; i++) {
-        particles.push({
-          x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height,
-          vx: (Math.random() - 0.5) * 0.3,
-          vy: -0.2 - Math.random() * 0.5,
-          size: 2 + Math.random() * 5,
-          opacity: 0.08 + Math.random() * 0.18,
-          color: '#FBBF24',
-        });
-      }
-    } else if (type === 'clear-night') {
-      // Twinkling stars
-      for (let i = 0; i < 60; i++) {
-        particles.push({
-          x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height,
-          vx: 0,
-          vy: 0,
-          size: 0.5 + Math.random() * 2.5,
-          opacity: 0.2 + Math.random() * 0.8,
-          color: i % 5 === 0 ? '#A78BFA' : '#FFFFFF',
-        });
-      }
-    } else if (type === 'fog') {
-      // Drifting fog blobs
-      for (let i = 0; i < 6; i++) {
-        particles.push({
-          x: Math.random() * canvas.width,
-          y: 20 + Math.random() * canvas.height * 0.8,
-          vx: 0.2 + Math.random() * 0.4,
-          vy: 0,
-          size: 80 + Math.random() * 120,
-          opacity: 0.04 + Math.random() * 0.07,
-        });
-      }
-    } else if (type === 'wind') {
-      // Diagonal streaks
-      for (let i = 0; i < 30; i++) {
-        particles.push({
-          x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height,
-          vx: 3 + Math.random() * 4,
-          vy: (Math.random() - 0.5) * 0.5,
-          size: 40 + Math.random() * 80,
-          opacity: 0.04 + Math.random() * 0.08,
-        });
-      }
-    } else if (type === 'thunder') {
-      // Sparse dark rain + lightning flashes handled in DOM
-      for (let i = 0; i < 50; i++) {
-        particles.push({
-          x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height,
-          vx: -2,
-          vy: 16 + Math.random() * 10,
-          size: 1 + Math.random() * 0.8,
-          opacity: 0.08 + Math.random() * 0.15,
-          color: '#6B7280',
-        });
-      }
-    } else if (type === 'partly-cloudy') {
-      // Light floating particles
-      for (let i = 0; i < 12; i++) {
-        particles.push({
-          x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height,
-          vx: (Math.random() - 0.5) * 0.4,
-          vy: -0.1 - Math.random() * 0.3,
-          size: 3 + Math.random() * 6,
-          opacity: 0.07 + Math.random() * 0.12,
-          color: '#38BDF8',
-        });
-      }
-    // FIX #7: Cloud particles — drifting blobs (sebelumnya array kosong)
-    } else if (type === 'cloud') {
-      for (let i = 0; i < 6; i++) {
-        particles.push({
-          x: Math.random() * canvas.width,
-          y: 10 + Math.random() * canvas.height * 0.7,
-          vx: 0.15 + Math.random() * 0.25,
-          vy: 0,
-          size: 60 + Math.random() * 100,
-          opacity: 0.06 + Math.random() * 0.09,
-        });
-      }
-    }
-
-    let lightningTimer = 0;
-    let lightningFlash = 0;
-
-    const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Lightning flash effect for thunder
-      if (type === 'thunder') {
-        lightningTimer++;
-        if (lightningTimer > 180 + Math.random() * 300) {
-          lightningFlash = 8;
-          lightningTimer = 0;
-        }
-        if (lightningFlash > 0) {
-          ctx.fillStyle = `rgba(255, 240, 180, ${lightningFlash * 0.03})`;
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          lightningFlash--;
-        }
-      }
-
-      for (const p of particles) {
-        ctx.save();
-        ctx.globalAlpha = p.opacity;
-
-        if (type === 'rain' || type === 'thunder') {
-          // Draw rain drop lines
-          ctx.strokeStyle = p.color || '#93C5FD';
-          ctx.lineWidth = p.size;
-          ctx.lineCap = 'round';
-          ctx.beginPath();
-          ctx.moveTo(p.x, p.y);
-          ctx.lineTo(p.x + p.vx * 2, p.y + p.vy * 2);
-          ctx.stroke();
-          p.x += p.vx;
-          p.y += p.vy;
-          if (p.y > canvas.height) {
-            p.y = -20;
-            p.x = Math.random() * canvas.width;
-          }
-        } else if (type === 'snow') {
-          ctx.fillStyle = '#FFFFFF';
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-          ctx.fill();
-          p.x += p.vx + Math.sin(Date.now() * 0.001 + p.y * 0.05) * 0.3;
-          p.y += p.vy;
-          if (p.y > canvas.height) {
-            p.y = -10;
-            p.x = Math.random() * canvas.width;
-          }
-        } else if (type === 'sun') {
-          ctx.fillStyle = p.color || '#FBBF24';
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-          ctx.fill();
-          p.x += p.vx;
-          p.y += p.vy;
-          if (p.y < -20) {
-            p.y = canvas.height + 10;
-            p.x = Math.random() * canvas.width;
-          }
-        } else if (type === 'clear-night') {
-          // Twinkling star
-          const twinkle = 0.5 + 0.5 * Math.sin(Date.now() * 0.002 + p.x * 0.01 + p.y * 0.01);
-          ctx.globalAlpha = p.opacity * twinkle;
-          ctx.fillStyle = p.color || '#FFFFFF';
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-          ctx.fill();
-        } else if (type === 'fog') {
-          const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
-          grad.addColorStop(0, 'rgba(209, 213, 219, 0.8)');
-          grad.addColorStop(1, 'rgba(209, 213, 219, 0)');
-          ctx.fillStyle = grad;
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-          ctx.fill();
-          p.x += p.vx;
-          if (p.x > canvas.width + p.size) {
-            p.x = -p.size;
-          }
-        } else if (type === 'wind') {
-          ctx.strokeStyle = 'rgba(148, 163, 184, 0.6)';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(p.x, p.y);
-          ctx.lineTo(p.x + p.size, p.y + p.vy * 10);
-          ctx.stroke();
-          p.x += p.vx;
-          if (p.x > canvas.width + p.size) {
-            p.x = -p.size;
-            p.y = Math.random() * canvas.height;
-          }
-        } else if (type === 'partly-cloudy') {
-          ctx.fillStyle = p.color || '#93C5FD';
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-          ctx.fill();
-          p.x += p.vx;
-          p.y += p.vy;
-          if (p.y < -20) {
-            p.y = canvas.height + 10;
-            p.x = Math.random() * canvas.width;
-          }
-        } else if (type === 'cloud') {
-          // FIX #7: Cloud blob dengan gerakan
-          const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
-          grad.addColorStop(0, 'rgba(148, 163, 184, 0.7)');
-          grad.addColorStop(1, 'rgba(148, 163, 184, 0)');
-          ctx.fillStyle = grad;
-          ctx.beginPath();
-          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-          ctx.fill();
-          p.x += p.vx;
-          if (p.x > canvas.width + p.size) {
-            p.x = -p.size;
-            p.y = 10 + Math.random() * canvas.height * 0.7;
-          }
-        }
-
-        ctx.restore();
-      }
-
-      animId = requestAnimationFrame(draw);
-    };
-
-    draw();
-    return () => {
-      cancelAnimationFrame(animId);
-      window.removeEventListener('resize', handleResize);
-      clearTimeout(resizeTimeout);
-    };
-  }, [type]);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      className="absolute inset-0 w-full h-full pointer-events-none"
-      style={{ opacity: 1 }}
-    />
-  );
-});
-
-// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
-export default function OverviewTab({ onNavigateToTab }: OverviewTabProps) {
+// â”€â”€â”€ MAIN COMPONENT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+export default function OverviewTab({ onNavigateToTab, tasks: propTasks }: OverviewTabProps) {
   const { user } = useAuth();
   
   const { analyticsData, insights, isLoading: analyticsLoading, fetchAnalyticsData } = useAnalytics();
@@ -810,9 +524,26 @@ export default function OverviewTab({ onNavigateToTab }: OverviewTabProps) {
   const { triggerAutoSchedule, isLoading: schedulingLoading } = useScheduling();
   const { openWithContext } = useAIChatBridge();
 
+  const [mobileZenMode, setMobileZenMode] = useState<'missions' | 'welearn' | 'asep'>('missions');
   const [tasks, setTasks] = useState<Task[]>([]);
+
+  useEffect(() => {
+    if (propTasks && propTasks.length > 0) {
+      setTasks(propTasks);
+      setTasksLoading(false);
+    }
+  }, [propTasks]);
+
+  // Player RPG Level & XP calculation
+  const completedTasksCount = useMemo(() => tasks.filter(t => t.status === 'completed').length, [tasks]);
+  const playerLevel = useMemo(() => Math.floor(completedTasksCount / 3) + 1, [completedTasksCount]);
+  const currentXP = useMemo(() => (completedTasksCount % 3) * 350 + 150, [completedTasksCount]);
+  const maxXP = 1000;
+  const xpPercent = Math.min(100, Math.round((currentXP / maxXP) * 100));
+  const [showPokopiaModal, setShowPokopiaModal] = useState(false);
   const [miniChatInput, setMiniChatInput] = useState('');
   const [isSpotifyExpanded, setIsSpotifyExpanded] = useState(false);
+  const [showSecondaryStats, setShowSecondaryStats] = useState(false);
   const [tasksLoading, setTasksLoading] = useState(true);
   const [tasksError, setTasksError] = useState<string | null>(null);
   const [syncingCalendarLocal, setSyncingCalendarLocal] = useState(false);
@@ -870,7 +601,7 @@ export default function OverviewTab({ onNavigateToTab }: OverviewTabProps) {
       if (!active) return;
 
       try {
-        // ── WeatherAPI.com (via server proxy untuk keamanan key) ────────────
+        // â”€â”€ WeatherAPI.com (via server proxy untuk keamanan key) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         const query = `${coords.lat},${coords.lon}`;
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
         const resp = await fetch(
@@ -951,6 +682,7 @@ export default function OverviewTab({ onNavigateToTab }: OverviewTabProps) {
         await API.patch(`/tasks/${taskId}`, { status: 'pending' });
       } else {
         await API.patch(`/tasks/${taskId}/complete`);
+        toast.success('🏆 QUEST COMPLETE! +100 XP diperoleh! ⚡');
       }
       fetchLocalTasks();
       fetchAnalyticsData();
@@ -1033,7 +765,7 @@ export default function OverviewTab({ onNavigateToTab }: OverviewTabProps) {
   const upcomingWeLearn = useMemo(() => moodleAssignments.filter(a => a.submissionStatus !== 'submitted').slice(0, 2), [moodleAssignments]);
   const isLoading = analyticsLoading || tasksLoading || calendarLoading || moodleLoading;
 
-  // ─── Neobrutalism card styling helpers (Sidebar Menu Style) ─────────────
+  // â”€â”€â”€ Neobrutalism card styling helpers (Sidebar Menu Style) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Struktur neobrutalism TETAP: border hitam + box-shadow
   // Aksen warna berubah mengikuti tema cuaca/waktu dari `theme`
   const cardBase = 'bg-white border-3 border-black rounded-2xl shadow-[5px_5px_0px_0px_#000]';
@@ -1042,7 +774,7 @@ export default function OverviewTab({ onNavigateToTab }: OverviewTabProps) {
   const textSub = 'text-black/60 font-semibold';
   const btnPrimary = 'bg-white border-2 border-black text-black shadow-[2px_2px_0px_0px_#000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_0px_#000] transition-all cursor-pointer font-black';
 
-  // ─── WEATHER-ADAPTIVE ACCENT SYSTEM ─────────────────────────────────────
+  // â”€â”€â”€ WEATHER-ADAPTIVE ACCENT SYSTEM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Warna aksen diambil dari tema cuaca yang aktif.
   // Semua warna ini berubah otomatis saat cuaca/waktu berubah.
   const isDark = !!theme.isDark;
@@ -1054,21 +786,21 @@ export default function OverviewTab({ onNavigateToTab }: OverviewTabProps) {
   const progressBarColor = themeAccentHex;
   const timelineTaskDot = themeAccentHex;
 
+  // â”€â”€â”€ LOADING SKELETON â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (isLoading && tasks.length === 0) {
     return (
       <div className="relative w-full space-y-5 text-left animate-pulse">
-        <div className="border-3 border-black rounded-2xl p-6 h-36 bg-slate-100" />
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map(i => <div key={i} className={`${metricCardBase} p-4 h-28`} />)}
+        <div className="border-3 border-black rounded-2xl p-6 h-36 bg-slate-100 shadow-[5px_5px_0px_0px_#000]" />
+        <div className="grid grid-cols-3 gap-4">
+          {[1,2,3].map(i => <div key={i} className={`${metricCardBase} p-4 h-28`} />)}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          <div className="lg:col-span-2 space-y-5">
-            <div className={`${cardBase} p-5 h-[360px]`} />
-            <div className={`${cardBase} p-5 h-[180px]`} />
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+          <div className="lg:col-span-3 space-y-5">
+            <div className={`${cardBase} p-5 h-[400px]`} />
           </div>
-          <div className="space-y-5">
-            <div className={`${cardBase} p-5 h-[230px]`} />
-            <div className={`${cardBase} p-5 h-[230px]`} />
+          <div className="lg:col-span-2 space-y-5">
+            <div className={`${cardBase} p-5 h-[200px]`} />
+            <div className={`${cardBase} p-5 h-[180px]`} />
           </div>
         </div>
       </div>
@@ -1077,257 +809,394 @@ export default function OverviewTab({ onNavigateToTab }: OverviewTabProps) {
 
   return (
     <div className="relative w-full space-y-5 text-left">
-      
-      {/* ─── SECTION 1: HEADER & GREETING (Minimalist & Clean) ─── */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pt-1">
-        <div>
-          <h1 className="text-2xl md:text-3.5xl font-black uppercase tracking-tight text-black flex items-center gap-2">
-            {timeGreeting}, {user?.name || 'Misionaris'}! ✨
-          </h1>
-          <div className="flex flex-wrap items-center gap-2 mt-1.5">
-            <span className="neo-badge text-[10px] uppercase tracking-wider font-black px-2.5 py-0.5 bg-neoYellow border-2 border-black shadow-[1.5px_1.5px_0px_0px_#000] text-black">
-              <CalendarDays className="w-3.5 h-3.5 inline mr-1 text-black" />
-              {formattedDate}
-            </span>
-            <span className="neo-badge text-[10px] uppercase tracking-wider font-black px-2.5 py-0.5 bg-neoCream border-2 border-black shadow-[1.5px_1.5px_0px_0px_#000] text-black">
-              <theme.Icon size={14} className="inline mr-1 text-black animate-pulse" />
-              {weatherData.loading ? '...' : `${weatherData.temp}°C · ${theme.name}`}
-            </span>
-            <span className="text-[10px] font-mono font-bold text-black/50">
-              📍 {weatherData.city}
-            </span>
-          </div>
-        </div>
-      </div>
+      <BYOKNoticeBanner onOpenSettings={() => onNavigateToTab('preferences' as any)} />
 
-      {/* AI RECOMMENDATION TIP CARD (Glassmorphism, Subtle Weather Backdrop) */}
-      <div 
-        className="relative border-3 border-black rounded-2xl p-4 overflow-hidden shadow-[4px_4px_0px_0px_#000] transition-all hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[5px_5px_0px_0px_#000]"
-        style={{ background: isDark ? 'linear-gradient(135deg, #1e1b4b 0%, #311042 100%)' : theme.bgGradient }}
-      >
-        <div className="absolute inset-0 pointer-events-none opacity-20 overflow-hidden">
-          <WeatherParticleCanvas type={theme.particleType} />
-        </div>
-        <div className="relative z-10 flex gap-3 items-center">
-          <div className="w-10 h-10 rounded-xl bg-white border-2 border-black flex items-center justify-center shadow-[2px_2px_0px_0px_#000] shrink-0">
-            <Sparkles className="w-5 h-5 text-neoOrange" />
-          </div>
-          <div className="flex-1 text-left">
-            <span className="text-[9px] font-black uppercase tracking-wider text-black/50 block">Rekomendasi AI Harian</span>
-            <p className={`text-xs font-bold leading-snug ${isDark ? 'text-white' : 'text-black'}`}>
-              {theme.recommendation}{' '}
-              {taskCounts.pending > 0
-                ? `Kamu memiliki ${taskCounts.pending} tugas tertunda. Yuk selesaikan sambil mendengarkan musik fokus!`
-                : 'Luar biasa! Semua tugas harianmu selesai. Santai dulu dan nikmati harimu.'}
-            </p>
-          </div>
-        </div>
-      </div>
+      {/* ==========================================================
+          SECTION 1: NEOBRUTALIST GAMIFIED HERO BANNER
+          ========================================================== */}
+      <div className="rounded-2xl p-5 md:p-6 bg-neoYellow border-4 border-black shadow-[6px_6px_0px_0px_#000] text-black mb-2 transition-all space-y-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          {/* Left: Level & Greeting */}
+          <div className="flex items-center gap-3.5">
+            <button 
+              onClick={() => setShowPokopiaModal(true)}
+              className="w-13 h-13 rounded-xl bg-violet-600 border-3 border-black text-white flex items-center justify-center font-heading font-black text-base shadow-[3px_3px_0px_0px_#000] active:translate-x-[1.5px] active:translate-y-[1.5px] active:shadow-none transition-all cursor-pointer hover:bg-violet-700 shrink-0"
+              title="Buka Status Pokopia"
+            >
+              LV.<NumberFlow value={playerLevel} />
+            </button>
 
-      {/* ─── SECTION 2: CORE METRICS GRID (4 Cards) ─── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Productivity Score */}
-        <div className={`${metricCardBase} p-4 flex flex-col justify-between hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[5px_5px_0px_0px_#000] transition-all`}>
-          <div className="flex justify-between items-start">
-            <span className="text-[10px] font-black uppercase tracking-wider text-black/60">Skor Produktivitas</span>
-            <div className="p-1.5 rounded-lg border border-black" style={{ background: themeAccentHex }}>
-              <Zap className="w-3.5 h-3.5" style={{ color: isDark ? '#fff' : '#000' }} />
+            <div>
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <span className="inline-block px-2 py-0.5 bg-black text-white font-mono text-[9px] uppercase font-black tracking-wider rounded">
+                  PLAYER STATUS: ACTIVE ⚡
+                </span>
+                <span className="inline-block px-2 py-0.5 bg-white border-2 border-black text-black font-mono text-[9px] uppercase font-black tracking-wider rounded shadow-[1px_1px_0px_#000]">
+                  <CalendarDays className="w-3 h-3 inline mr-1 text-black" />
+                  {formattedDate}
+                </span>
+              </div>
+              <h1 className="text-xl md:text-2xl font-black uppercase tracking-tight text-black flex items-center gap-2">
+                {timeGreeting}, {user?.name || 'Misionaris'}! ⚔️
+              </h1>
             </div>
           </div>
-          <div className="my-2">
-            <h3 className="text-2xl font-black leading-none text-black">
-              {analyticsData?.summary?.productivityScore.toFixed(1) || '8.5'}
-              <span className="text-xs font-bold ml-1 text-black/60">/10</span>
-            </h3>
+
+          {/* Right: Weather & Streak Badge */}
+          <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+            <div className="px-3 py-1.5 bg-white border-3 border-black rounded-xl font-mono text-xs font-black shadow-[2.5px_2.5px_0px_0px_#000] flex items-center gap-1.5">
+              <span className="text-base">🔥</span>
+              <span>7 DAYS STREAK!</span>
+            </div>
+            <div className="px-3 py-1.5 bg-white border-3 border-black rounded-xl font-mono text-xs font-black shadow-[2.5px_2.5px_0px_0px_#000] flex items-center gap-1.5">
+              <theme.Icon size={14} className="inline opacity-80" />
+              <span>{weatherData.loading ? '...' : `${weatherData.temp}°C · ${theme.name}`}</span>
+            </div>
+            <button
+              onClick={() => setShowPokopiaModal(true)}
+              className="px-3 py-1.5 bg-amber-400 hover:bg-amber-500 border-3 border-black rounded-xl font-mono text-xs font-black shadow-[2.5px_2.5px_0px_0px_#000] text-black active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all cursor-pointer flex items-center gap-1"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-black animate-spin" style={{ animationDuration: '4s' }} />
+              Pokopia
+            </button>
           </div>
-          <button
-            onClick={handleAIReorder}
-            disabled={schedulingAllLocal || schedulingLoading}
-            className={`w-full text-[9px] font-black py-1.5 px-2 rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${btnPrimary}`}
-          >
-            <BrainCircuit className={`w-3 h-3 ${schedulingAllLocal ? 'animate-spin' : ''}`} />
-            AI Jadwal Ulang
-          </button>
         </div>
 
-        {/* Card 2: Circular Progress */}
-        <div className={`${metricCardBase} p-4 flex flex-col justify-between hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[5px_5px_0px_0px_#000] transition-all cursor-pointer`} onClick={() => onNavigateToTab('list')}>
-          <div className="flex justify-between items-start">
-            <span className="text-[10px] font-black uppercase tracking-wider text-black/60">Progres Tugas</span>
-            <div className="p-1.5 rounded-lg bg-neoMint border border-black">
+        {/* Progress Bar & Quest XP Indicator */}
+        <div className="p-3.5 bg-white border-3 border-black rounded-xl shadow-[3px_3px_0px_0px_#000] space-y-2">
+          <div className="flex justify-between items-center font-black text-[10px] md:text-xs font-mono">
+            <span className="uppercase tracking-wide text-black">SCHEDULER WARRIOR · LEVEL {playerLevel + 1} PROGRESS</span>
+            <span className="bg-neoYellow px-2 py-0.5 border-2 border-black rounded shadow-[1px_1px_0px_#000] text-black">
+              <NumberFlow value={currentXP} /> / {maxXP} XP
+            </span>
+          </div>
+          
+          <div className="h-4 w-full bg-slate-100 border-3 border-black rounded-lg overflow-hidden p-0.5">
+            <div 
+              className="h-full bg-emerald-400 border-r-2 border-black rounded-sm transition-all duration-700"
+              style={{ width: `${xpPercent}%` }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* NEXT MISSION CARD (Focal Point Utama Beranda) */}
+      <NextMissionCard 
+        tasks={tasks} 
+        onNavigateToList={() => onNavigateToTab('list')} 
+      />
+
+      {/* ==========================================================
+          MOBILE ZEN SWITCHER (Mobile Only)
+          ==========================================================
+          ========================================================== */}
+      <div className="md:hidden flex items-center justify-between bg-white border-3 border-black p-1.5 rounded-2xl shadow-[4px_4px_0px_#000]">
+        {(['missions','welearn','asep'] as const).map((mode) => {
+          const labels = { missions: '🎯 Misi', welearn: '📚 WeLearn', asep: '🤖 AI' };
+          const activeColors = { missions: 'bg-neoYellow', welearn: 'bg-neoMint', asep: 'bg-neoViolet text-white' };
+          const isActive = mobileZenMode === mode;
+          return (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setMobileZenMode(mode)}
+              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 min-h-[44px] ${
+                isActive
+                  ? `${activeColors[mode]} border-2 border-black shadow-[1.5px_1.5px_0px_#000]`
+                  : 'text-gray-600 hover:text-black'
+              }`}
+            >
+              {labels[mode]}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* MOBILE ZEN CONTENT */}
+      <div className="md:hidden">
+        {mobileZenMode === 'missions' && (
+          <div className={`${cardBase} p-5 space-y-3`}>
+            <div className="flex items-center justify-between pb-2.5 border-b-2 border-slate-100">
+              <span className="text-xs font-black uppercase flex items-center gap-1.5 text-black">
+                <CheckSquare className="w-4 h-4 text-neoOrange" /> Fokus Hari Ini
+              </span>
+              <span className="text-[10px] font-mono font-bold bg-neoYellow border border-black px-2 py-0.5 rounded shadow-[1px_1px_0px_#000]">
+                {taskCounts.pending} Pending
+              </span>
+            </div>
+            <div className="space-y-2">
+              {tasks.filter(t => t.status !== 'completed').slice(0, 5).map((task) => {
+                const isBoss = task.dueDate && new Date(task.dueDate).getTime() - Date.now() < 86400000;
+                const questType = isBoss ? '👾 BOSS' : task.category === 'education' ? '⚔️ MAIN' : '🛡️ SIDE';
+                const badgeBg = isBoss ? 'bg-neoPink text-white' : task.category === 'education' ? 'bg-neoYellow text-black' : 'bg-neoMint text-black';
+                return (
+                  <div key={task.id} className={`flex items-center justify-between p-3 rounded-2xl border-2 border-black shadow-[2px_2px_0px_#000] ${isBoss ? 'bg-neoPink/10 border-neoPink' : 'bg-white'}`}>
+                    <div className="min-w-0 flex-1 pr-2">
+                      <span className={`text-[8px] font-mono font-black px-2 py-0.5 rounded-full border border-black ${badgeBg} mr-1`}>{questType}</span>
+                      <span className="font-black text-black text-xs block truncate mt-1">{task.title}</span>
+                    </div>
+                    <button onClick={() => handleToggleTaskComplete(task.id, task.status)}
+                      className="min-h-[44px] min-w-[44px] px-3 bg-neoMint hover:bg-neoYellow rounded-xl border-2 border-black shadow-[1.5px_1.5px_0px_#000] active:scale-90 transition-all cursor-pointer flex items-center justify-center">
+                      <CheckCircle2 className="w-5 h-5 text-black" />
+                    </button>
+                  </div>
+                );
+              })}
+              {tasks.filter(t => t.status !== 'completed').length === 0 && (
+                <div className="py-6 text-center text-xs font-bold text-slate-500">🎉 Semua tugas selesai!</div>
+              )}
+            </div>
+            <button onClick={() => onNavigateToTab('list')} className={`w-full text-xs font-black min-h-[44px] py-3 ${btnPrimary} rounded-xl`}>
+              Kelola Semua Tugas →
+            </button>
+          </div>
+        )}
+
+        {mobileZenMode === 'welearn' && (
+          <div className={`${cardBase} p-5 space-y-3`}>
+            <div className="flex items-center justify-between pb-2.5 border-b-2 border-slate-100">
+              <span className="text-xs font-black uppercase flex items-center gap-1.5 text-black">
+                <BookOpen className="w-4 h-4 text-neoBlue" /> WeLearn Radar
+              </span>
+              <span className="text-[10px] font-mono font-bold bg-neoMint border border-black px-2 py-0.5 rounded shadow-[1px_1px_0px_#000]">LMS</span>
+            </div>
+            {moodleAssignments.length > 0 ? (
+              <div className="bg-[#E0F2FE] border-2 border-black p-3 rounded-xl">
+                <div className="flex justify-between text-[10px] font-mono font-black text-blue-900 mb-1">
+                  <span>Deadline Terdekat</span>
+                  <span>{new Date(moodleAssignments[0].dueDate || Date.now()).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</span>
+                </div>
+                <p className="font-black text-sm text-black">{moodleAssignments[0].name}</p>
+                <p className="text-xs text-slate-600 font-bold">{moodleAssignments[0].courseName}</p>
+              </div>
+            ) : (
+              <div className="py-6 text-center text-xs font-bold text-slate-500">Tidak ada agenda WeLearn terdekat.</div>
+            )}
+            <button onClick={() => onNavigateToTab('welearn')} className={`w-full text-xs font-black min-h-[44px] py-3 ${btnPrimary} rounded-xl`}>
+              Buka Radar WeLearn →
+            </button>
+          </div>
+        )}
+
+        {mobileZenMode === 'asep' && (
+          <div className={`${cardBase} p-5 space-y-3`}>
+            <div className="flex items-center justify-between pb-2.5 border-b-2 border-slate-100">
+              <span className="text-xs font-black uppercase flex items-center gap-1.5 text-black">
+                <BrainCircuit className="w-4 h-4 text-neoViolet" /> Tanya Asep AI
+              </span>
+              <span className="text-[10px] font-mono font-bold bg-neoYellow border border-black px-2 py-0.5 rounded shadow-[1px_1px_0px_#000]">Active</span>
+            </div>
+            <form onSubmit={(e) => { e.preventDefault(); if (miniChatInput.trim()) { openWithContext(miniChatInput); setMiniChatInput(''); }}} className="flex gap-2">
+              <input type="text" value={miniChatInput} aria-label="Pertanyaan AI" onChange={(e) => setMiniChatInput(e.target.value)}
+                placeholder="Misal: Rencanakan hari ini..."
+                className="flex-1 min-h-[44px] px-3 py-2 bg-slate-50 border-2 border-black rounded-xl text-xs font-bold focus:outline-none focus:bg-white text-black" />
+              <button type="submit" className="min-h-[44px] min-w-[44px] p-2 bg-neoYellow border-2 border-black rounded-xl shadow-[2px_2px_0px_#000] active:scale-95 cursor-pointer flex items-center justify-center">
+                <Send className="w-4 h-4 text-black" />
+              </button>
+            </form>
+            <button onClick={() => openWithContext('Halo Asep, bantu saya merencanakan hari ini!')}
+              className={`w-full text-xs font-black min-h-[44px] py-3 ${btnPrimary} rounded-xl`}>
+              Buka Chat AI Fullscreen ✨
+            </button>
+          </div>
+        )}
+      </div>
+
+                  {/* ==========================================================
+          SECTION 2: STATS ROW — 3 Compact Metric Cards (Compact & Informative)
+          ========================================================== */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        
+        {/* Card 1: Produktivitas */}
+        <div className={`${metricCardBase} p-3.5 h-[104px] flex flex-col justify-between hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[5px_5px_0px_0px_#000] transition-all`}>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black uppercase tracking-wider text-black/60">Produktivitas</span>
+            <div className="w-6 h-6 rounded-lg bg-neoYellow border border-black flex items-center justify-center shadow-[1px_1px_0px_#000] shrink-0">
+              <Zap className="w-3.5 h-3.5 text-black fill-black" />
+            </div>
+          </div>
+          <div className="flex items-baseline justify-between gap-1">
+            <div className="text-xl font-black text-black leading-none">
+              {analyticsData?.summary?.productivityScore.toFixed(1) || '8.5'}
+              <span className="text-[10px] font-bold text-black/50 ml-0.5">/10</span>
+            </div>
+            <button
+              onClick={handleAIReorder}
+              disabled={schedulingAllLocal || schedulingLoading}
+              className="px-2 py-1 text-[9px] font-black rounded-lg bg-white border border-black text-black shadow-[1px_1px_0px_#000] hover:bg-neoYellow transition-all cursor-pointer flex items-center gap-1 active:scale-95 shrink-0"
+            >
+              <BrainCircuit className={`w-3 h-3 ${schedulingAllLocal ? 'animate-spin' : ''}`} />
+              {schedulingAllLocal ? '...' : 'AI Auto-Jadwal'}
+            </button>
+          </div>
+        </div>
+
+        {/* Card 2: Progress Quest */}
+        <div 
+          onClick={() => onNavigateToTab('list')}
+          className={`${metricCardBase} p-3.5 h-[104px] flex flex-col justify-between hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[5px_5px_0px_0px_#000] transition-all cursor-pointer`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black uppercase tracking-wider text-black/60">Progress Quest</span>
+            <div className="w-6 h-6 rounded-lg bg-neoMint border border-black flex items-center justify-center shadow-[1px_1px_0px_#000] shrink-0">
               <CheckCircle2 className="w-3.5 h-3.5 text-black" />
             </div>
           </div>
-          <div className="flex items-center gap-3 my-1">
-            <div className="relative w-12 h-12 shrink-0">
-              <svg className="w-full h-full transform -rotate-90">
-                <circle
-                  cx="24"
-                  cy="24"
-                  r="18"
-                  className="stroke-slate-100"
-                  strokeWidth="4.5"
-                  fill="transparent"
-                />
-                <circle
-                  cx="24"
-                  cy="24"
-                  r="18"
-                  stroke={themeAccentHex}
-                  strokeWidth="4.5"
-                  fill="transparent"
-                  strokeDasharray={2 * Math.PI * 18}
-                  strokeDashoffset={2 * Math.PI * 18 * (1 - taskCounts.ratio / 100)}
-                  strokeLinecap="round"
-                />
-              </svg>
-              <span className="absolute inset-0 flex items-center justify-center text-[10px] font-black font-mono text-black">
-                {taskCounts.ratio}%
-              </span>
+          <div className="flex items-baseline justify-between">
+            <div className="text-xl font-black text-black leading-none">
+              {taskCounts.completed}
+              <span className="text-[10px] font-bold text-black/50 ml-1">/ {taskCounts.total} tugas</span>
             </div>
-            <div className="text-left min-w-0">
-              <h3 className="text-lg font-black leading-none text-black truncate">
-                {taskCounts.completed} <span className="text-xs font-bold text-black/60">Selesai</span>
-              </h3>
-              <p className="text-[9px] font-semibold text-black/60 mt-1">Dari {taskCounts.total} tugas</p>
-            </div>
+            <span className="text-[10px] font-mono font-black px-1.5 py-0.5 bg-neoYellow border border-black rounded shadow-[1px_1px_0px_#000]">
+              {taskCounts.ratio}%
+            </span>
           </div>
-          <div className="w-full h-1.5 rounded-full overflow-hidden border border-black bg-white">
-            <div
-              className="h-full rounded-full"
-              style={{
-                width: `${taskCounts.ratio}%`,
-                background: progressBarColor,
-              }}
+          <div className="w-full h-2 bg-slate-100 border border-black rounded-full overflow-hidden p-0.5 shadow-inner">
+            <div 
+              className="h-full bg-neoMint rounded-full transition-all duration-700" 
+              style={{ width: `${taskCounts.ratio}%` }} 
             />
           </div>
         </div>
 
-        {/* Card 3: Academic / WeLearn */}
+        {/* Card 3: Akademik & LMS */}
         <div 
-          className={`${metricCardBase} p-4 flex flex-col justify-between hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[5px_5px_0px_0px_#000] transition-all cursor-pointer`}
           onClick={() => onNavigateToTab('welearn')}
+          className={`${metricCardBase} p-3.5 h-[104px] flex flex-col justify-between hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[5px_5px_0px_0px_#000] transition-all cursor-pointer`}
         >
-          <div className="flex justify-between items-start">
+          <div className="flex items-center justify-between">
             <span className="text-[10px] font-black uppercase tracking-wider text-black/60">Akademik & LMS</span>
-            <div className="p-1.5 rounded-lg bg-neoViolet border border-black">
+            <div className="w-6 h-6 rounded-lg bg-neoViolet border border-black flex items-center justify-center shadow-[1px_1px_0px_#000] shrink-0">
               <GraduationCap className="w-3.5 h-3.5 text-white" />
             </div>
           </div>
-          <div className="my-2">
-            <h3 className="text-2xl font-black leading-none text-black">
+          <div className="flex items-baseline justify-between gap-1">
+            <div className="text-xl font-black text-black leading-none">
               {moodleAssignments.filter(a => a.submissionStatus !== 'submitted').length}
-              <span className="text-xs font-bold ml-1 text-black/60">Tugas LMS</span>
-            </h3>
-          </div>
-          <div className="flex items-center justify-between text-[9px] font-semibold text-black/60">
-            <span>Risiko Kelulusan:</span>
-            <span className={
-              analyticsData?.mlMetrics?.graduationRisk?.status === 'High'
-                ? 'text-rose-500 font-extrabold'
-                : analyticsData?.mlMetrics?.graduationRisk?.status === 'Moderate'
-                ? 'text-amber-500 font-extrabold'
-                : 'text-emerald-500 font-extrabold'
-            }>
-              {analyticsData?.mlMetrics?.graduationRisk?.status === 'High' ? 'Tinggi' : analyticsData?.mlMetrics?.graduationRisk?.status === 'Moderate' ? 'Sedang' : 'Rendah'}
+              <span className="text-[10px] font-bold text-black/50 ml-1">Tugas Pending</span>
+            </div>
+            <span className={`px-2 py-0.5 rounded font-black border border-black text-[8px] uppercase shadow-[1px_1px_0px_#000] shrink-0 ${
+              analyticsData?.mlMetrics?.graduationRisk?.status === 'High' ? 'bg-neoOrange text-white'
+              : analyticsData?.mlMetrics?.graduationRisk?.status === 'Moderate' ? 'bg-neoYellow text-black'
+              : 'bg-neoMint text-black'
+            }`}>
+              Risiko: {analyticsData?.mlMetrics?.graduationRisk?.status === 'High' ? 'Tinggi'
+               : analyticsData?.mlMetrics?.graduationRisk?.status === 'Moderate' ? 'Sedang' : 'Rendah'}
             </span>
           </div>
         </div>
 
-        {/* Card 4: Agenda Hari Ini */}
-        <div 
-          className={`${metricCardBase} p-4 flex flex-col justify-between hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[5px_5px_0px_0px_#000] transition-all cursor-pointer`}
-          onClick={() => onNavigateToTab('calendar')}
-        >
-          <div className="flex justify-between items-start">
-            <span className="text-[10px] font-black uppercase tracking-wider text-black/60">Agenda Hari Ini</span>
-            <div className="p-1.5 rounded-lg bg-neoPink border border-black">
-              <Calendar className="w-3.5 h-3.5 text-white" />
-            </div>
-          </div>
-          <div className="my-2">
-            <h3 className="text-2xl font-black leading-none text-black">
-              {todayAgenda.length}
-              <span className="text-xs font-bold ml-1 text-black/60">Jadwal</span>
-            </h3>
-          </div>
-          <p className="text-[9px] font-semibold truncate text-black/60 text-left">
-            {nextAgendaItem ? `Next: ${nextAgendaItem.title}` : 'Tidak ada jadwal tersisa.'}
-          </p>
-        </div>
       </div>
 
-      {/* ─── SECTION 3: TWO-COLUMN MAIN LAYOUT ─── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        
-        {/* KOLOM KIRI: Linimasa & Deadline WeLearn (2/3 Lebar) */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Timeline Agenda Harian */}
-          <div className={`${cardBase} p-5 flex flex-col`} style={{ minHeight: '360px' }}>
+
+
+      {/* ==========================================================
+          SECTION 3: MAIN GRID — 5-col split (3+2)
+          Kiri (3/5): Quest List + Linimasa Tergabung
+          Kanan (2/5): Agenda Terdekat + AI Oracle (1 aja)
+          ==========================================================
+          ========================================================== */}
+      <div className="hidden md:grid md:grid-cols-5 gap-5">
+
+        {/* ==========================================================
+          KIRI: Quest Focus + Timeline â”€â”€ */}
+        <div className="md:col-span-3 space-y-5">
+
+          {/* QUEST FOCUS (Fokus Hari Ini) */}
+          <div className={`${cardBase} p-5 flex flex-col`}>
+            <div className="flex items-center justify-between pb-3 mb-3 border-b-2 border-black">
+              <h2 className="text-sm font-black uppercase tracking-wider text-black flex items-center gap-2">
+                <CheckSquare className="w-4 h-4 text-neoOrange" /> Fokus Hari Ini
+              </h2>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono font-bold bg-neoYellow border border-black px-2 py-0.5 rounded shadow-[1px_1px_0px_#000]">
+                  {taskCounts.pending} Pending
+                </span>
+                <button onClick={() => onNavigateToTab('list')} className="text-[10px] font-black text-black/50 hover:text-black transition-colors">
+                  Semua →
+                </button>
+              </div>
+            </div>
+
+            {tasks.filter(t => t.status !== 'completed').length === 0 ? (
+              <div className="py-6 text-center text-xs font-bold text-slate-500">🎉 Semua quest selesai!</div>
+            ) : (
+              <div className="space-y-2.5">
+                {tasks.filter(t => t.status !== 'completed').slice(0, 4).map(task => {
+                  const isBoss = task.dueDate && new Date(task.dueDate).getTime() - Date.now() < 86400000;
+                  const questType = isBoss ? '👾 BOSS' : task.category === 'education' ? '⚔️ MAIN' : '🛡️ SIDE';
+                  const badgeBg = isBoss ? 'bg-neoPink text-white border-neoPink' : task.category === 'education' ? 'bg-neoYellow text-black' : 'bg-neoMint text-black';
+                  const xpReward = isBoss ? '+150 XP' : '+100 XP';
+                  return (
+                    <div key={task.id} className={`flex items-center gap-3 p-3 rounded-xl border-2 border-black shadow-[2px_2px_0px_#000] transition-all hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_#000] ${isBoss ? 'bg-neoPink/10' : 'bg-white'}`}>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className={`text-[8px] font-mono font-black px-2 py-0.5 rounded-full border border-black ${badgeBg}`}>{questType}</span>
+                          <span className="text-[8px] font-mono font-black text-black/50 bg-slate-100 border border-black/20 px-1.5 py-0.5 rounded">{xpReward}</span>
+                        </div>
+                        <span className="font-black text-xs text-black block truncate">{task.title}</span>
+                      </div>
+                      <button onClick={() => handleToggleTaskComplete(task.id, task.status)}
+                        className="w-9 h-9 rounded-xl border-2 border-black shadow-[1.5px_1.5px_0px_#000] bg-white hover:bg-neoMint transition-all cursor-pointer flex items-center justify-center shrink-0">
+                        <CheckCircle2 className="w-4 h-4 text-black" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* LINIMASA AGENDA HARI INI */}
+          <div className={`${cardBase} p-5 flex flex-col`} style={{ height: '360px' }}>
             <div className="flex justify-between items-center mb-4 shrink-0 pb-3 border-b-2 border-black">
               <h2 className="text-sm font-black flex items-center gap-2 text-black uppercase tracking-wider">
-                <Clock className="w-4 h-4" /> Linimasa Agenda Hari Ini
+                <Clock className="w-4 h-4" /> Linimasa Hari Ini
               </h2>
-              <span
-                className="neo-badge text-[9px] font-mono font-black px-2.5 py-1"
-                style={{ background: themeAccentHex, color: isDark ? '#fff' : '#000', borderColor: '#000' }}
-              >
-                {todayAgenda.length} Kegiatan
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="neo-badge text-[9px] font-mono font-black px-2.5 py-1 border border-black"
+                      style={{ background: themeAccentHex, color: isDark ? '#fff' : '#000' }}>
+                  {todayAgenda.length} Kegiatan
+                </span>
+                <button onClick={() => onNavigateToTab('calendar')} className="text-[10px] font-black text-black/50 hover:text-black transition-colors">
+                  Kalender →
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto pr-1">
               {todayAgenda.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-center py-10">
-                  <h4 className="font-black text-xs mt-3 text-black uppercase">Tidak Ada Agenda Terjadwal</h4>
-                  <p className="text-[10px] font-semibold max-w-xs mx-auto mt-1 mb-3 text-black/60">
-                    Semua tugas telah selesai dikerjakan atau belum dialokasikan oleh AI.
-                  </p>
-                  <button
-                    onClick={() => onNavigateToTab('list')}
-                    className={`text-xxs font-black px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${btnPrimary}`}
-                  >
+                <div className="h-full flex flex-col items-center justify-center text-center">
+                  <h4 className="font-black text-xs text-black uppercase">Tidak Ada Agenda</h4>
+                  <p className="text-[10px] font-semibold text-black/50 mt-1 mb-3">Semua telah selesai atau belum dialokasikan AI.</p>
+                  <button onClick={() => onNavigateToTab('list')} className={`text-xxs font-black px-3 py-1.5 rounded-lg border ${btnPrimary}`}>
                     Buat Tugas Baru <Plus className="w-3 h-3 inline ml-0.5" />
                   </button>
                 </div>
               ) : (
-                <div className="relative border-l-3 border-black pl-5 ml-4 py-1 space-y-4 text-left">
+                <div className="relative border-l-3 border-black pl-5 ml-4 py-1 space-y-4">
                   {todayAgenda.map((item) => {
                     const isTask = item.type === 'task';
                     const startStr = new Date(item.startTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
                     const endStr = new Date(item.endTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
                     return (
                       <div key={item.id} className="relative group">
-                        {/* Dot timeline stepper */}
-                        <div
-                          className="absolute -left-[24.5px] top-2.5 w-3.5 h-3.5 border-2 border-black rounded-full z-10 transition-all group-hover:scale-125"
-                          style={{ backgroundColor: isTask ? timelineTaskDot : '#8B5CF6' }}
-                        />
+                        <div className="absolute -left-[24.5px] top-2.5 w-3.5 h-3.5 border-2 border-black rounded-full z-10 transition-all group-hover:scale-125"
+                             style={{ backgroundColor: isTask ? timelineTaskDot : '#8B5CF6' }} />
                         <div className="bg-white border-2 border-black shadow-[2px_2px_0px_0px_#000] rounded-xl p-3 flex items-center justify-between gap-3 transition-all hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_0px_#000]">
                           <div className="space-y-1 flex-1 min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-mono text-[9px] font-black px-1.5 py-0.5 bg-neoCream border border-black rounded text-black">
-                                {startStr} – {endStr}
-                              </span>
-                              <span
-                                className="text-[8px] font-black uppercase px-1.5 py-0.5 border border-black rounded"
-                                style={{
-                                  backgroundColor: isTask ? timelineTaskDot : '#8B5CF6',
-                                  color: isTask ? (isDark ? '#fff' : '#000') : '#fff',
-                                }}
-                              >
-                                {isTask ? 'Tugas AI' : 'Event'}
+                              <span className="font-mono text-[9px] font-black px-1.5 py-0.5 bg-neoCream border border-black rounded text-black">{startStr} – {endStr}</span>
+                              <span className="text-[8px] font-black uppercase px-1.5 py-0.5 border border-black rounded"
+                                    style={{ backgroundColor: isTask ? timelineTaskDot : '#8B5CF6', color: isTask ? (isDark ? '#fff' : '#000') : '#fff' }}>
+                                {isTask ? 'Tugas' : 'Event'}
                               </span>
                             </div>
                             <h3 className="font-black text-xs truncate text-black">{item.title}</h3>
                           </div>
                           {isTask && (
-                            <button
-                              onClick={() => handleToggleTaskComplete(item.id, item.status || 'pending')}
-                              className="w-8 h-8 rounded-lg border-2 border-black flex items-center justify-center transition-all cursor-pointer shrink-0 bg-white shadow-[2px_2px_0px_0px_#000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_0px_#000]"
-                              onMouseEnter={e => (e.currentTarget.style.background = `${themeAccentHex}40`)}
-                              onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
-                            >
+                            <button onClick={() => handleToggleTaskComplete(item.id, item.status || 'pending')}
+                              className="w-8 h-8 rounded-lg border-2 border-black flex items-center justify-center bg-white hover:bg-neoMint shadow-[2px_2px_0px_0px_#000] transition-all cursor-pointer shrink-0">
                               <CheckSquare className="w-4 h-4 text-black" />
                             </button>
                           )}
@@ -1339,149 +1208,224 @@ export default function OverviewTab({ onNavigateToTab }: OverviewTabProps) {
               )}
             </div>
           </div>
-
-          {/* WeLearn Peek Card */}
-          <div className={`${cardBase} p-5 flex flex-col`} style={{ minHeight: '180px' }}>
-            <div className="flex justify-between items-center mb-3 pb-2 border-b-2 border-black shrink-0">
-              <h3 className="text-sm font-black uppercase tracking-wider flex items-center gap-1.5 text-black">
-                <BookOpen className="w-4 h-4" /> Tugas WeLearn Terdekat
-              </h3>
-            </div>
-            <div className="flex-1 overflow-y-auto space-y-2">
-              {!moodleStatus?.isConnected ? (
-                <div className="h-full flex flex-col items-center justify-center text-center py-4">
-                  <p className="text-[10px] font-semibold mb-2 text-black/60">Hubungkan akun WeLearn LMS Anda untuk sinkronisasi otomatis.</p>
-                  <button
-                    onClick={() => onNavigateToTab('integrations')}
-                    className={`text-[9px] font-black px-3 py-1.5 rounded-lg border-2 border-black cursor-pointer transition-all bg-white hover:bg-neoOrange hover:text-white shadow-[2px_2px_0px_0px_#000] text-black`}
-                  >
-                    Hubungkan WeLearn
-                  </button>
-                </div>
-              ) : upcomingWeLearn.length === 0 ? (
-                <div className="h-full flex items-center justify-center py-6">
-                  <p className="text-xs font-semibold flex items-center gap-1.5 text-black/60">
-                    <CheckCircle2 className="w-4.5 h-4.5 text-emerald-500 shrink-0" /> Hore! Semua tugas WeLearn Anda aman.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {upcomingWeLearn.map((assign) => (
-                    <div key={assign.id} className="bg-white border-2 border-black rounded-xl shadow-[2px_2px_0px_0px_#000] p-3 flex items-center justify-between gap-2 text-left">
-                      <div className="min-w-0 flex-1">
-                        <span className="text-[8px] font-mono font-bold block truncate text-black/50">
-                          {assign.courseName.split('_').pop()?.replace(/_/g, ' ')}
-                        </span>
-                        <h4 className="font-black text-xs truncate text-black mt-0.5">{assign.name}</h4>
-                      </div>
-                      <div className="shrink-0 flex flex-col items-end gap-1.5">
-                        <span className="text-[8px] font-mono font-bold text-black/60">
-                          {assign.dueDate ? new Date(assign.dueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : 'No Date'}
-                        </span>
-                        <a
-                          href={assign.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center text-[8px] font-black px-2 py-0.5 rounded border-2 border-black cursor-pointer transition-all bg-white hover:bg-neoOrange hover:text-white shadow-[1px_1px_0px_0px_#000] text-black"
-                        >
-                          LMS ↗
-                        </a>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
         </div>
 
-        {/* KOLOM KANAN: Spotify Player, AI Assistant & Quota (1/3 Lebar) */}
-        <div className="lg:col-span-1 space-y-6">
-          {/* Spotify Focus Player Embed */}
-          <div className={`${cardBase} p-5 flex flex-col gap-3.5`}>
-            <div className="flex justify-between items-center pb-2.5 border-b-2 border-black">
-              <h3 className="text-xs font-black uppercase tracking-wider flex items-center gap-2 text-black">
-                <Music className="w-4 h-4 text-black animate-bounce" /> Spotify Focus Player
+        {/* ==========================================================
+          KANAN: Agenda Terdekat + AI Oracle (satu saja, bukan dua) â”€â”€ */}
+        <div className="md:col-span-2 space-y-5">
+
+          {/* AGENDA TERDEKAT + NEXT MISSION */}
+          <div className={`${cardBase} p-5 flex flex-col gap-3`}>
+            <div className="flex items-center justify-between pb-2.5 border-b-2 border-black">
+              <h3 className="text-sm font-black uppercase tracking-wider flex items-center gap-2 text-black">
+                <CalendarDays className="w-4 h-4 text-neoBlue" /> Agenda Terdekat
               </h3>
-              <button
-                onClick={() => setIsSpotifyExpanded(!isSpotifyExpanded)}
-                className="p-1 rounded border-2 border-black bg-white hover:bg-slate-50 text-black shadow-[1.5px_1.5px_0px_0px_#000] active:translate-x-[0.5px] active:translate-y-[0.5px] active:shadow-none hover:translate-x-[-0.5px] hover:translate-y-[-0.5px] hover:shadow-[2px_2px_0px_0px_#000] transition-all cursor-pointer flex items-center justify-center"
-                title={isSpotifyExpanded ? 'Perkecil Player' : 'Perbesar Player'}
-              >
-                {isSpotifyExpanded ? (
-                  <Minimize2 className="w-3.5 h-3.5 stroke-[2.5]" />
-                ) : (
-                  <Maximize2 className="w-3.5 h-3.5 stroke-[2.5]" />
-                )}
-              </button>
+              <span className="text-[10px] font-mono font-bold bg-neoMint border border-black px-2 py-0.5 rounded shadow-[1px_1px_0px_#000]">
+                {todayAgenda.length} Jadwal
+              </span>
             </div>
-            <div className="rounded-xl overflow-hidden border-2 border-black shadow-[3px_3px_0px_0px_#000]">
-              <iframe
-                src="https://open.spotify.com/embed/playlist/37i9dQZF1DWWQRwui0ExPn?utm_source=generator&theme=0"
-                width="100%"
-                height={isSpotifyExpanded ? "380" : "152"}
-                frameBorder="0"
-                allowFullScreen={false}
-                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                loading="lazy"
-                className="w-full transition-all duration-300"
-              />
-            </div>
-            <p className="text-[9px] font-bold text-black/50 text-center leading-snug px-1">
-              Putar musik Lofi Beats atau ambient ini untuk membantumu tetap rileks dan berkonsentrasi tinggi.
-            </p>
+
+            {/* Next agenda item highlight */}
+            {nextAgendaItem && (
+              <div className="p-3 rounded-xl border-2 border-black shadow-[2px_2px_0px_#000]"
+                   style={{ background: themeAccentHex + '20', borderColor: '#000' }}>
+                <div className="text-[9px] font-mono font-black text-black/60 uppercase tracking-wider mb-1">Selanjutnya</div>
+                <p className="font-black text-xs text-black leading-snug">{nextAgendaItem.title}</p>
+                <p className="text-[9px] font-bold text-black/50 mt-0.5">
+                  {new Date(nextAgendaItem.startTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+            )}
+
+            {/* Moodle deadline card */}
+            {moodleAssignments.length > 0 ? (
+              <div className="bg-[#E0F2FE] border-2 border-black p-3 rounded-xl shadow-[2px_2px_0px_#000]">
+                <div className="flex justify-between text-[10px] font-mono font-black text-blue-900 mb-1">
+                  <span>Deadline WeLearn</span>
+                  <span>{new Date(moodleAssignments[0].dueDate || Date.now()).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</span>
+                </div>
+                <p className="font-black text-xs text-black truncate">{moodleAssignments[0].name}</p>
+                <p className="text-[10px] text-slate-600 font-semibold truncate">{moodleAssignments[0].courseName}</p>
+              </div>
+            ) : events.length > 0 ? (
+              <div className="bg-[#FEF08A] border-2 border-black p-3 rounded-xl shadow-[2px_2px_0px_#000]">
+                <div className="flex justify-between text-[10px] font-mono font-black text-amber-900 mb-1">
+                  <span>Event Kalender</span><span>Hari ini</span>
+                </div>
+                <p className="font-black text-xs text-black truncate">{events[0].title}</p>
+              </div>
+            ) : (
+              <div className="py-4 text-center text-xs font-bold text-slate-500">Tidak ada agenda terdekat.</div>
+            )}
+
+            <button onClick={() => onNavigateToTab('calendar')} className={`w-full text-xs font-black min-h-[44px] py-2.5 ${btnPrimary} rounded-xl`}>
+              Lihat Kalender Lengkap →
+            </button>
           </div>
 
-          {/* AI Control Center & Quick Chat */}
-          <div className={`${cardBase} p-5 flex flex-col gap-4`}>
-            <h3 className="text-xs font-black uppercase tracking-wider flex items-center gap-2 pb-2.5 border-b-2 border-black text-black">
-              <div className="p-1 border border-black rounded" style={{ background: themeAccentHex }}>
-                <Zap className="w-3.5 h-3.5" style={{ color: isDark ? '#fff' : '#000' }} />
-              </div>
-              Pusat Kendali AI
-            </h3>
+          {/* AI ORACLE — Satu-satunya AI input, tidak duplikat */}
+          <div className={`${cardBase} p-5 flex flex-col gap-3`}>
+            <div className="flex items-center justify-between pb-2.5 border-b-2 border-black">
+              <h3 className="text-sm font-black uppercase tracking-wider flex items-center gap-2 text-black">
+                <BrainCircuit className="w-4 h-4 text-neoViolet" /> Tanya Asep AI
+              </h3>
+              <span className="text-[10px] font-mono font-bold bg-neoYellow border border-black px-2 py-0.5 rounded shadow-[1px_1px_0px_#000]">AI Copilot</span>
+            </div>
 
-            {/* Quick Interactive Chat Input */}
-            <form onSubmit={handleMiniChatSubmit} className="space-y-2 text-left">
-              <label className="text-[9px] font-black text-black/60 uppercase tracking-wider block">Tanya Asisten AI</label>
-              <div className="relative flex items-center">
-                <input
-                  type="text"
-                  placeholder="Ketik tugas / tanya AI di sini..."
-                  value={miniChatInput}
-                  onChange={(e) => setMiniChatInput(e.target.value)}
-                  className="w-full border-2 border-black rounded-xl pl-3 pr-10 py-2.5 text-xs font-bold bg-white focus:outline-none focus:ring-0 text-black animate-none"
-                />
-                <button
-                  type="submit"
-                  className="absolute right-1.5 p-1.5 rounded-lg border border-black bg-white hover:bg-slate-100 transition-colors cursor-pointer text-black"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                </button>
-              </div>
+            <p className="text-[10px] font-semibold text-black/60">Ketik instruksi atau pertanyaan cepat:</p>
+
+            <form onSubmit={handleMiniChatSubmit} className="flex gap-2">
+              <input type="text" value={miniChatInput} aria-label="Pertanyaan Asep AI"
+                onChange={(e) => setMiniChatInput(e.target.value)}
+                placeholder="Misal: Rencanakan hari ini..."
+                className="flex-1 min-h-[44px] px-3 py-2 bg-slate-50 border-2 border-black rounded-xl text-xs font-bold focus:outline-none focus:bg-white text-black" />
+              <button type="submit" className="min-h-[44px] min-w-[44px] p-2 bg-neoYellow border-2 border-black rounded-xl shadow-[2px_2px_0px_#000] active:scale-95 cursor-pointer flex items-center justify-center">
+                <Send className="w-4 h-4 text-black" />
+              </button>
             </form>
 
-            <div className="grid grid-cols-2 gap-2.5 pt-2 border-t-2 border-black">
-              <button
-                onClick={() => onNavigateToTab('list')}
-                className="text-[10px] py-2 px-2 font-black rounded-xl border-2 border-black cursor-pointer transition-all bg-white hover:bg-neoYellow shadow-[2px_2px_0px_0px_#000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_0px_#000] text-black text-center"
-              >
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => onNavigateToTab('list')} className={`text-[10px] py-2 px-2 font-black rounded-xl ${btnPrimary} text-center`}>
                 🚀 Tambah Tugas
               </button>
-              <button
-                onClick={() => onNavigateToTab('excuse-letter')}
-                className="text-[10px] py-2 px-2 font-black rounded-xl border-2 border-black cursor-pointer transition-all bg-white hover:bg-neoPink hover:text-white shadow-[2px_2px_0px_0px_#000] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_0px_#000] text-black text-center"
-              >
-                📄 Surat Izin
+              <button onClick={() => openWithContext('Halo Asep, bantu saya merencanakan hari ini!')}
+                className={`text-[10px] py-2 px-2 font-black rounded-xl ${btnPrimary} text-center`}>
+                ✨ Chat Fullscreen
               </button>
             </div>
           </div>
 
-          {/* Quota & Plan Widget */}
-          <QuotaWidget onPlanUpgraded={() => window.location.reload()} />
+          {/* SPOTIFY (Collapsible, di kanan bawah) */}
+          <div className={`${cardBase} p-4 flex flex-col gap-2`}>
+            <div className="flex justify-between items-center pb-2 border-b-2 border-black">
+              <h3 className="text-xs font-black uppercase tracking-wider flex items-center gap-2 text-black">
+                <Music className="w-4 h-4 animate-bounce" /> Focus Music
+              </h3>
+              <button onClick={() => setIsSpotifyExpanded(!isSpotifyExpanded)}
+                className="p-1 rounded border-2 border-black bg-white hover:bg-slate-50 shadow-[1.5px_1.5px_0px_#000] hover:translate-x-[-0.5px] hover:translate-y-[-0.5px] hover:shadow-[2px_2px_0px_#000] transition-all cursor-pointer">
+                {isSpotifyExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+            <div className="rounded-xl overflow-hidden">
+              <iframe src="https://open.spotify.com/embed/playlist/37i9dQZF1DWWQRwui0ExPn?utm_source=generator&theme=0"
+                width="100%" height={isSpotifyExpanded ? '320' : '90'}
+                frameBorder="0" allowFullScreen={false}
+                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                loading="lazy" className="w-full transition-all duration-300 rounded-xl" />
+            </div>
+          </div>
         </div>
-
       </div>
+
+      {/* ==========================================================
+          SECTION 4: WELEARN TERDEKAT — Conditional (hanya tampil jika ada tugas)
+          ==========================================================
+          ========================================================== */}
+      {upcomingWeLearn.length > 0 && (
+        <div className={`${cardBase} p-5`}>
+          <div className="flex justify-between items-center mb-3 pb-2 border-b-2 border-black">
+            <h3 className="text-sm font-black uppercase tracking-wider flex items-center gap-1.5 text-black">
+              <BookOpen className="w-4 h-4" /> Tugas WeLearn Mendekat
+            </h3>
+            <button onClick={() => onNavigateToTab('welearn')} className="text-[10px] font-black text-black/50 hover:text-black transition-colors">
+              Lihat Semua →
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {upcomingWeLearn.map((assign) => (
+              <div key={assign.id} className="bg-white border-2 border-black rounded-xl shadow-[2px_2px_0px_#000] p-3 flex items-center justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <span className="text-[8px] font-mono font-bold block truncate text-black/50">
+                    {assign.courseName.split('_').pop()?.replace(/_/g, ' ')}
+                  </span>
+                  <h4 className="font-black text-xs truncate text-black mt-0.5">{assign.name}</h4>
+                </div>
+                <div className="shrink-0 flex flex-col items-end gap-1.5">
+                  <span className="text-[8px] font-mono font-bold text-black/60">
+                    {assign.dueDate ? new Date(assign.dueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : 'No Date'}
+                  </span>
+                  <a href={assign.url} target="_blank" rel="noopener noreferrer"
+                    className={`inline-flex items-center text-[8px] font-black px-2 py-0.5 rounded border-2 border-black cursor-pointer hover:bg-neoOrange hover:text-white shadow-[1px_1px_0px_#000] text-black transition-all`}>
+                    LMS â†—
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* AI Weather Recommendation Card (Directly visible) */}
+      <div className="relative border-3 border-black rounded-2xl p-4 overflow-hidden shadow-[4px_4px_0px_0px_#000]"
+           style={{ background: isDark ? 'linear-gradient(135deg, #1e1b4b 0%, #311042 100%)' : theme.bgGradient }}>
+        <div className="absolute inset-0 pointer-events-none opacity-20 overflow-hidden">
+          <WeatherParticleCanvas type={theme.particleType} />
+        </div>
+        <div className="relative z-10 flex gap-3 items-center">
+          <div className="w-10 h-10 rounded-xl bg-white border-2 border-black flex items-center justify-center shadow-[2px_2px_0px_#000] shrink-0">
+            <Sparkles className="w-5 h-5 text-neoOrange" />
+          </div>
+          <div className="flex-1">
+            <span className="text-[9px] font-black uppercase tracking-wider text-black/50 block">Rekomendasi AI · {theme.name}</span>
+            <p className={`text-xs font-bold leading-snug ${isDark ? 'text-white' : 'text-black'}`}>
+              {theme.recommendation}{' '}
+              {taskCounts.pending > 0 ? `Kamu punya ${taskCounts.pending} tugas tertunda.` : 'Luar biasa! Semua tugas selesai.'}
+            </p>
+          </div>
+          <div className="text-right shrink-0">
+            <div className={`text-lg font-black ${isDark ? 'text-white' : 'text-black'}`}>{weatherData.temp}°C</div>
+            <div className={`text-[9px] font-bold ${isDark ? 'text-white/60' : 'text-black/50'}`}>{weatherData.city}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Pokopia Game Modal Demo */}
+      <PokopiaModal
+        isOpen={showPokopiaModal}
+        onClose={() => setShowPokopiaModal(false)}
+        badge={`LEVEL ${playerLevel} REWARD`}
+        title="VICTORY & REWARD!"
+        subtitle={`Selamat ${user?.name || 'Warrior'}! Kamu telah menyelesaikan ${completedTasksCount} tugas & mengumpulkan ${currentXP} XP.`}
+        icon={<Trophy className="w-7 h-7 text-amber-900" />}
+        primaryAction={{
+          label: 'KLAIM HADIAH (+350 XP)',
+          onClick: () => {
+            toast.success('🎉 Hadiah berhasil diklaim! +350 XP ditambahkan!');
+            setShowPokopiaModal(false);
+          },
+          variant: 'gold',
+        }}
+        secondaryAction={{
+          label: 'TUTUP',
+          onClick: () => setShowPokopiaModal(false),
+        }}
+      >
+        <div className="space-y-3 py-1">
+          <div className="bg-amber-100/80 border-2 border-black rounded-2xl p-3.5 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-400 border-2 border-black flex items-center justify-center font-black text-lg shadow-[2px_2px_0px_#000]">
+              ⚡
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] font-mono font-black text-amber-900 uppercase">BONUS STATS</div>
+              <div className="text-xs font-black text-black">Master Scheduler Title Unlocked</div>
+            </div>
+            <span className="text-xs font-black bg-white border-2 border-black px-2.5 py-1 rounded-xl shadow-[1.5px_1.5px_0px_#000]">
+              +350 XP
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 text-left">
+            <div className="bg-slate-50 border-2 border-black p-2.5 rounded-xl shadow-[1.5px_1.5px_0px_#000]">
+              <span className="text-[9px] font-mono font-bold text-slate-500 block">TOTAL MISI</span>
+              <span className="text-sm font-black text-black">{completedTasksCount} Completed</span>
+            </div>
+            <div className="bg-slate-50 border-2 border-black p-2.5 rounded-xl shadow-[1.5px_1.5px_0px_#000]">
+              <span className="text-[9px] font-mono font-bold text-slate-500 block">PRODUCTIVITY</span>
+              <span className="text-sm font-black text-emerald-600">{analyticsData?.summary?.productivityScore.toFixed(1) || '8.5'} / 10</span>
+            </div>
+          </div>
+        </div>
+      </PokopiaModal>
 
     </div>
   );

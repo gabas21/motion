@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
+	"github.com/motion/backend/config"
 )
 
 type RateLimiter struct {
@@ -39,6 +41,26 @@ func NewRateLimiter(maxAttempts int, windowSize time.Duration) *RateLimiter {
 }
 
 func (rl *RateLimiter) IsAllowed(key string) bool {
+	// 1. Jika Redis tersedia, gunakan distributed rate limiter via Redis
+	if config.IsRedisAvailable() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		pipe := config.RedisClient.TxPipeline()
+		incrCmd := pipe.Incr(ctx, key)
+		pipe.Expire(ctx, key, rl.windowSize)
+
+		_, err := pipe.Exec(ctx)
+		if err == nil {
+			count, errVal := incrCmd.Result()
+			if errVal == nil {
+				return count <= int64(rl.maxAttempts)
+			}
+		}
+		// Jika transaksi pipeline Redis error, fallback ke in-memory rate limiter
+	}
+
+	// 2. Fallback: In-Memory Rate Limiter (existing)
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
@@ -122,6 +144,27 @@ func RateLimitLogin(limiter *RateLimiter) echo.MiddlewareFunc {
 			if (email != "" && !limiter.IsAllowed(emailKey)) || !limiter.IsAllowed(ipKey) {
 				return c.JSON(http.StatusTooManyRequests, map[string]string{
 					"error": "Terlalu banyak percobaan login. Coba lagi dalam 1 menit.",
+				})
+			}
+
+			return next(c)
+		}
+	}
+}
+
+// Global Limiter instance for Auth operations
+var AuthLimiter = NewRateLimiter(5, 1*time.Minute)
+
+// RateLimitGeneral restricts requests by IP for generic endpoints
+func RateLimitGeneral(limiter *RateLimiter, actionName string) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			clientIP := c.RealIP()
+			ipKey := fmt.Sprintf("%s:ip:%s", actionName, clientIP)
+
+			if !limiter.IsAllowed(ipKey) {
+				return c.JSON(http.StatusTooManyRequests, map[string]string{
+					"error": fmt.Sprintf("Terlalu banyak permintaan. Silakan coba lagi dalam 1 menit."),
 				})
 			}
 

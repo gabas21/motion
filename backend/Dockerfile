@@ -1,5 +1,5 @@
 # Stage 1: Build & Development environment
-FROM golang:1.25-alpine AS development
+FROM golang:alpine AS development
 
 # Install build dependencies & Air for hot reloading
 RUN apk add --no-cache git gcc musl-dev && \
@@ -22,7 +22,7 @@ FROM development AS builder
 RUN CGO_ENABLED=0 GOOS=linux go build -o main .
 
 # Stage 3: Final lightweight runner
-FROM alpine:3.18
+FROM alpine:latest
 
 RUN apk add --no-cache ca-certificates tzdata
 

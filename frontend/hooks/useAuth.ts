@@ -43,7 +43,8 @@ export const useAuth = create<AuthState>((set, get) => ({
       set({ user, isAuthenticated: true, isLoading: false, isInitialized: true });
       return true;
     } catch (error: any) {
-      const errMsg = error.response?.data?.error || 'Login failed. Please check your credentials.';
+      const errData = error.response?.data;
+      const errMsg = errData?.message || errData?.error || 'Login failed. Please check your credentials.';
       set({ error: errMsg, isLoading: false });
       return false;
     }
@@ -54,7 +55,6 @@ export const useAuth = create<AuthState>((set, get) => ({
     try {
       const response = await API.post('/auth/register', { name, email, password });
       const { user } = response.data.data;
-      // Token JWT dikelola oleh HTTP-only cookie yang di-set backend — tidak disimpan di JS
       localStorage.setItem('motion_user', JSON.stringify(user));
       set({ user, isAuthenticated: true, isLoading: false, isInitialized: true });
       return true;
@@ -98,25 +98,29 @@ export const useAuth = create<AuthState>((set, get) => ({
       set({ user: cachedUser, isAuthenticated: true });
     }
 
-    // Validasi sesi ke backend via HTTP-only cookie (bukan localStorage token)
+    // Validasi sesi ke backend via HTTP-only cookie
+    // Gunakan timeout 30 detik khusus untuk init — backend bisa butuh waktu cold start
     try {
-      const response = await API.get('/auth/me');
+      const response = await API.get('/auth/me', { timeout: 30000 });
       const user = response.data.data;
       localStorage.setItem('motion_user', JSON.stringify(user));
       set({ user, isAuthenticated: true, isLoading: false, isInitialized: true });
     } catch (error: any) {
-      // Cookie tidak valid, expired, backend timeout, atau network error —
-      // tetap set isInitialized: true agar skeleton login hilang dan form tampil.
-      // Jika ada cache lokal tapi validasi gagal, bersihkan state untuk keamanan.
-      localStorage.removeItem('motion_user');
       const isTimeout = error?.code === 'ECONNABORTED' || error?.message?.includes('timeout');
       const isNetworkErr = !error?.response;
+
       if (isTimeout || isNetworkErr) {
-        // Backend belum siap — tampilkan form login dengan pesan informatif
-        // tapi jangan set isAuthenticated agar user bisa login ulang
-        set({ user: null, isAuthenticated: false, isLoading: false, isInitialized: true });
+        // Backend belum siap / network error — PERTAHANKAN cache agar user tidak di-logout paksa.
+        // Validasi otomatis akan berhasil saat backend siap dan user akses fitur berikutnya.
+        set({
+          user: cachedUser,
+          isAuthenticated: !!cachedUser,
+          isLoading: false,
+          isInitialized: true,
+        });
       } else {
-        // HTTP error (401, 403, dll) — sesi tidak valid
+        // HTTP error (401, 403, dll) — sesi benar-benar tidak valid → bersihkan dan logout
+        localStorage.removeItem('motion_user');
         set({ user: null, isAuthenticated: false, isLoading: false, isInitialized: true });
       }
     }

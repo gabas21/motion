@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -75,11 +77,11 @@ func Register(c echo.Context) error {
 		return utils.JSONError(c, http.StatusConflict, "Email already registered")
 	}
 
-	// Buat user baru
+	// Buat user baru (langsung diverifikasi agar siap digunakan)
 	user := models.User{
 		Email:         req.Email,
 		Name:          req.Name,
-		EmailVerified: false,
+		EmailVerified: true,
 	}
 
 	if err := user.HashPassword(req.Password); err != nil {
@@ -92,28 +94,29 @@ func Register(c echo.Context) error {
 		return utils.JSONError(c, http.StatusInternalServerError, "Failed to create user")
 	}
 
-	logger.Info("Register: User baru berhasil dibuat", "email", user.Email, "userId", user.ID)
+	logger.Info("Register: User baru berhasil dibuat dan diautentikasi", "email", user.Email, "userId", user.ID)
 
-	// Generate verification token
-	token := generateRandomToken()
-	hashedToken := hashToken(token)
-	expiresAt := time.Now().Add(24 * time.Hour)
-	config.DB.Model(&user).Updates(map[string]interface{}{
-		"email_verify_token":   hashedToken,
-		"email_verify_expires": expiresAt,
+	// Otomatis generate JWT Token Pair & set HTTP-only cookie agar user langsung ter-login
+	tokenPair, err := utils.GenerateTokenPair(user.ID, user.Email, user.Role, config.AppConfig.JWTSecret)
+	if err != nil {
+		logger.Error("Register: Token generation failed", err)
+		return utils.JSONError(c, http.StatusInternalServerError, "Authentication failed")
+	}
+
+	setAuthCookies(c, tokenPair)
+
+	createSessionRecord(user.ID, tokenPair.RefreshToken, c.Request().UserAgent(), c.RealIP())
+
+	utils.LogAuditEvent(user.ID.String(), "REGISTER_SUCCESS", "auth", map[string]interface{}{
+		"ip": c.RealIP(),
 	})
 
-	// Send verification email
-	go func() {
-		if err := services.SendVerificationEmail(user.Email, user.Name, token); err != nil {
-			config.DB.Model(&user).Update("email_send_failed", true)
-			logger.Error("Register: Gagal mengirim email verifikasi", err, "email", user.Email)
-		}
-	}()
-
 	return utils.JSONSuccess(c, http.StatusCreated, map[string]interface{}{
-		"message": "Akun berhasil dibuat. Silakan periksa email kamu untuk melakukan verifikasi sebelum masuk.",
-		"user":    user,
+		"message":      "Akun berhasil dibuat!",
+		"user":         user,
+		"access_token": tokenPair.AccessToken,
+		"expires_in":   tokenPair.ExpiresIn,
+		"token_type":   tokenPair.TokenType,
 	})
 }
 
@@ -151,7 +154,11 @@ func Login(c echo.Context) error {
 			"reason": "account_locked",
 		})
 		if user.IsSuspended() {
-			return utils.JSONError(c, http.StatusForbidden, "Akun Anda telah dinonaktifkan oleh administrator.")
+			return c.JSON(http.StatusForbidden, map[string]interface{}{
+				"code":    "ACCOUNT_SUSPENDED",
+				"error":   "Akun Anda telah dinonaktifkan oleh administrator.",
+				"message": "Akses Anda ditangguhkan sementara. Silakan hubungi administrator.",
+			})
 		}
 		return utils.JSONError(c, http.StatusForbidden, 
 			fmt.Sprintf("Akun terkunci. Coba lagi pada %s", user.LockedUntil.Format("15:04")))
@@ -174,7 +181,12 @@ func Login(c echo.Context) error {
 	// Verifikasi password dengan bcrypt
 	if !user.CheckPassword(req.Password) {
 		user.IncrementFailedLogin()
-		config.DB.Save(&user)
+		// Gunakan Updates() bukan Save() agar kolom lain tidak di-overwrite
+		// (user di-load dengan Select() terbatas, Save() akan zero-out kolom lainnya)
+		config.DB.Model(&user).Updates(map[string]interface{}{
+			"failed_login_attempts": user.FailedLoginAttempts,
+			"locked_until":          user.LockedUntil,
+		})
 
 		logger.Warn("Login: Password tidak cocok", "email", req.Email, "userId", user.ID)
 		utils.LogAuditEvent(user.ID.String(), "LOGIN_FAILED", "auth", map[string]interface{}{
@@ -185,10 +197,16 @@ func Login(c echo.Context) error {
 	}
 
 	// Success: reset failed attempts and update last login
-	user.ResetFailedLogin()
+	// Gunakan Updates() bukan Save() agar kolom lain tidak di-overwrite
 	now := time.Now()
+	config.DB.Model(&user).Updates(map[string]interface{}{
+		"failed_login_attempts": 0,
+		"locked_until":          nil,
+		"last_login_at":         &now,
+	})
+	user.FailedLoginAttempts = 0
+	user.LockedUntil = nil
 	user.LastLoginAt = &now
-	config.DB.Save(&user)
 
 	logger.Info("Login: Berhasil", "email", user.Email, "userId", user.ID)
 
@@ -201,6 +219,8 @@ func Login(c echo.Context) error {
 
 	// Set HTTP-only Cookies
 	setAuthCookies(c, tokenPair)
+
+	createSessionRecord(user.ID, tokenPair.RefreshToken, c.Request().UserAgent(), c.RealIP())
 
 	utils.LogAuditEvent(user.ID.String(), "LOGIN_SUCCESS", "auth", map[string]interface{}{
 		"ip": c.RealIP(),
@@ -221,9 +241,35 @@ func GetMe(c echo.Context) error {
 		return utils.JSONError(c, http.StatusUnauthorized, "Unauthorized")
 	}
 
+	userIDStr := fmt.Sprintf("%v", userIdVal)
 	var user models.User
+	cacheKey := "cache:user:" + userIDStr
+
+	// Coba ambil dari Redis cache
+	if config.IsRedisAvailable() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		cachedData, err := config.RedisClient.Get(ctx, cacheKey).Result()
+		cancel()
+		if err == nil && cachedData != "" {
+			if err := json.Unmarshal([]byte(cachedData), &user); err == nil {
+				return utils.JSONSuccess(c, http.StatusOK, user)
+			}
+		}
+	}
+
+	// Fallback ke database
 	if err := config.DB.First(&user, "id = ?", userIdVal).Error; err != nil {
 		return utils.JSONError(c, http.StatusNotFound, "User not found")
+	}
+
+	// Simpan ke Redis cache untuk 5 menit jika tersedia
+	if config.IsRedisAvailable() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		jsonData, err := json.Marshal(user)
+		if err == nil {
+			config.RedisClient.Set(ctx, cacheKey, jsonData, 5*time.Minute)
+		}
+		cancel()
 	}
 
 	return utils.JSONSuccess(c, http.StatusOK, user)
@@ -340,6 +386,13 @@ func GenerateTelegramOTP(c echo.Context) error {
 		return utils.JSONError(c, http.StatusInternalServerError, "Gagal membuat kode OTP")
 	}
 
+	// Simpan OTP ke Redis jika tersedia
+	if config.IsRedisAvailable() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		config.RedisClient.Set(ctx, "telegram:otp:"+otpCode, userId.String(), 10*time.Minute)
+		cancel()
+	}
+
 	return utils.JSONSuccess(c, http.StatusOK, map[string]interface{}{
 		"otp":       otpCode,
 		"expiresAt": otpExp,
@@ -397,7 +450,6 @@ func UnlinkTelegram(c echo.Context) error {
 type UpdateMeRequest struct {
 	Name            string `json:"name"`
 	Timezone        string `json:"timezone"`
-	Plan            string `json:"plan"`
 	CurrentPassword string `json:"currentPassword"`
 	NewPassword     string `json:"newPassword"`
 }
@@ -453,6 +505,13 @@ func UpdateMe(c echo.Context) error {
 	if err := config.DB.Save(&user).Error; err != nil {
 		logger.Error("UpdateMe: Gagal memperbarui user di DB", err, "userId", userId)
 		return utils.JSONError(c, http.StatusInternalServerError, "Gagal memperbarui profil pengguna")
+	}
+
+	// Invalidate Redis cache
+	if config.IsRedisAvailable() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		config.RedisClient.Del(ctx, "cache:user:"+userId.String())
+		cancel()
 	}
 
 	return utils.JSONSuccess(c, http.StatusOK, user)
@@ -549,6 +608,13 @@ func RequestEmailVerification(c echo.Context) error {
 		"email_send_failed":    false,
 	})
 
+	// Simpan token verifikasi ke Redis jika tersedia
+	if config.IsRedisAvailable() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		config.RedisClient.Set(ctx, "verify:token:"+hashedToken, user.ID.String(), 24*time.Hour)
+		cancel()
+	}
+
 	// Send email
 	go func() {
 		if err := services.SendVerificationEmail(user.Email, user.Name, token); err != nil {
@@ -572,16 +638,30 @@ func VerifyEmail(c echo.Context) error {
 	}
 
 	var user models.User
-
-	// Find user by token
 	hashedToken := hashToken(token)
-	if err := config.DB.Where("email_verify_token = ?", hashedToken).First(&user).Error; err != nil {
-		return utils.JSONError(c, http.StatusBadRequest, "Token tidak valid atau kedaluwarsa")
+	found := false
+
+	// Coba cari di Redis terlebih dahulu
+	if config.IsRedisAvailable() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		userIDStr, err := config.RedisClient.Get(ctx, "verify:token:"+hashedToken).Result()
+		cancel()
+		if err == nil && userIDStr != "" {
+			if err := config.DB.First(&user, "id = ?", userIDStr).Error; err == nil {
+				found = true
+			}
+		}
 	}
 
-	// Check if expired
-	if user.EmailVerifyExpires == nil || user.EmailVerifyExpires.Before(time.Now()) {
-		return utils.JSONError(c, http.StatusBadRequest, "Token verifikasi telah kedaluwarsa")
+	if !found {
+		// Fallback ke pencarian DB
+		if err := config.DB.Where("email_verify_token = ?", hashedToken).First(&user).Error; err != nil {
+			return utils.JSONError(c, http.StatusBadRequest, "Token tidak valid atau kedaluwarsa")
+		}
+		// Check if expired
+		if user.EmailVerifyExpires == nil || user.EmailVerifyExpires.Before(time.Now()) {
+			return utils.JSONError(c, http.StatusBadRequest, "Token verifikasi telah kedaluwarsa")
+		}
 	}
 
 	// Mark as verified
@@ -593,6 +673,13 @@ func VerifyEmail(c echo.Context) error {
 		"email_verify_expires":  nil,
 		"email_send_failed":     false,
 	})
+
+	// Hapus token dari Redis jika ada
+	if config.IsRedisAvailable() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		config.RedisClient.Del(ctx, "verify:token:"+hashedToken)
+		cancel()
+	}
 
 	utils.LogAuditEvent(user.ID.String(), "EMAIL_VERIFIED", "auth", nil)
 
@@ -629,6 +716,13 @@ func RequestPasswordReset(c echo.Context) error {
 		"reset_token_expires": expiresAt,
 	})
 
+	// Simpan token reset ke Redis jika tersedia
+	if config.IsRedisAvailable() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		config.RedisClient.Set(ctx, "reset:token:"+hashedToken, user.ID.String(), 1*time.Hour)
+		cancel()
+	}
+
 	// Send email
 	go func() {
 		if err := services.SendPasswordResetEmail(user.Email, user.Name, token); err != nil {
@@ -657,16 +751,30 @@ func ResetPassword(c echo.Context) error {
 	}
 
 	var user models.User
-
-	// Find user by token
 	hashedToken := hashToken(req.Token)
-	if err := config.DB.Where("reset_token = ?", hashedToken).First(&user).Error; err != nil {
-		return utils.JSONError(c, http.StatusBadRequest, "Token tidak valid atau kedaluwarsa")
+	found := false
+
+	// Coba cari di Redis terlebih dahulu
+	if config.IsRedisAvailable() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		userIDStr, err := config.RedisClient.Get(ctx, "reset:token:"+hashedToken).Result()
+		cancel()
+		if err == nil && userIDStr != "" {
+			if err := config.DB.First(&user, "id = ?", userIDStr).Error; err == nil {
+				found = true
+			}
+		}
 	}
 
-	// Check if expired
-	if user.ResetTokenExpires == nil || user.ResetTokenExpires.Before(time.Now()) {
-		return utils.JSONError(c, http.StatusBadRequest, "Token reset password telah kedaluwarsa")
+	if !found {
+		// Fallback ke pencarian DB
+		if err := config.DB.Where("reset_token = ?", hashedToken).First(&user).Error; err != nil {
+			return utils.JSONError(c, http.StatusBadRequest, "Token tidak valid atau kedaluwarsa")
+		}
+		// Check if expired
+		if user.ResetTokenExpires == nil || user.ResetTokenExpires.Before(time.Now()) {
+			return utils.JSONError(c, http.StatusBadRequest, "Token reset password telah kedaluwarsa")
+		}
 	}
 
 	// Hash new password
@@ -680,6 +788,13 @@ func ResetPassword(c echo.Context) error {
 		"reset_token":         "",
 		"reset_token_expires": nil,
 	})
+
+	// Hapus token dari Redis jika ada
+	if config.IsRedisAvailable() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		config.RedisClient.Del(ctx, "reset:token:"+hashedToken)
+		cancel()
+	}
 
 	utils.LogAuditEvent(user.ID.String(), "PASSWORD_RESET", "auth", nil)
 
@@ -699,6 +814,22 @@ func generateRandomToken() string {
 func hashToken(token string) string {
 	h := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(h[:])
+}
+
+func createSessionRecord(userID uuid.UUID, refreshToken string, userAgent string, ipAddress string) {
+	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(refreshToken)))
+	deviceInfo := userAgent
+	if deviceInfo == "" {
+		deviceInfo = "Unknown Browser / Client"
+	}
+	session := models.UserSession{
+		UserID:           userID,
+		RefreshTokenHash: hash,
+		DeviceInfo:       deviceInfo,
+		IPAddress:        ipAddress,
+		LastActiveAt:     time.Now(),
+	}
+	_ = config.DB.Create(&session)
 }
 
 

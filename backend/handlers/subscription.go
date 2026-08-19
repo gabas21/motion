@@ -65,7 +65,7 @@ func GetSubscriptionStatus(c echo.Context) error {
 	})
 }
 
-// UpgradeSubscription upgrades user plan by creating a Tripay QRIS transaction
+// UpgradeSubscription upgrades user plan by creating a Midtrans Snap & QRIS transaction
 // POST /api/v1/subscription/upgrade
 func UpgradeSubscription(c echo.Context) error {
 	userIDVal := c.Get("userId")
@@ -85,20 +85,44 @@ func UpgradeSubscription(c echo.Context) error {
 	}
 
 	// Tentukan nominal paket Pro (Rp 30.000)
-	var amount int = 30000
+	var amount int64 = 30000
 
 	if req.Plan != "pro" {
 		return utils.JSONError(c, http.StatusBadRequest, "Tujuan plan tidak didukung untuk upgrade manual")
 	}
 
-	// Buat Order ID unik untuk invoice Tripay
+	// Idempotency Guard: Cek apakah user sudah memiliki pembayaran yang sedang pending
+	var existingPending models.Subscription
+	if err := config.DB.Where("user_id = ? AND status = 'pending'", userID).Order("created_at DESC").First(&existingPending).Error; err == nil {
+		return utils.JSONSuccess(c, http.StatusOK, map[string]interface{}{
+			"message":      "Anda sudah memiliki pembayaran yang sedang diproses. Silakan selesaikan pembayaran terlebih dahulu.",
+			"plan":         existingPending.Plan,
+			"order_id":     existingPending.OrderID,
+			"checkout_url": existingPending.CheckoutURL,
+			"qr_string":    existingPending.QrString,
+			"qr_url":       existingPending.QrURL,
+			"amount":       existingPending.Amount,
+			"existing":     true,
+		})
+	}
+
+	// Buat Order ID unik untuk invoice Midtrans
 	orderID := fmt.Sprintf("INV-%s-%d", userID.String()[:8], time.Now().Unix())
 
-	// Panggil Tripay API untuk generate QRIS
-	tripayData, err := services.InstanceTripayService.CreateQRISTransaction(orderID, amount, user.Name, user.Email)
+	// Panggil Midtrans API untuk generate Snap Token & QRIS
+	snapData, err := services.InstanceMidtransService.CreateSnapTransaction(orderID, amount, user.Name, user.Email)
 	if err != nil {
-		logger.Error("UpgradeSubscription: Gagal memproses ke Tripay", err, "userId", userID)
-		return utils.JSONError(c, http.StatusInternalServerError, "Gagal menghubungi Tripay: "+err.Error())
+		logger.Error("UpgradeSubscription: Gagal memproses ke Midtrans", err, "userId", userID)
+		return utils.JSONError(c, http.StatusInternalServerError, "Gagal menghubungi Midtrans: "+err.Error())
+	}
+
+	qrisData, _ := services.InstanceMidtransService.CreateQRISCoreTransaction(orderID, amount, user.Name, user.Email)
+
+	qrString := ""
+	qrURL := ""
+	if qrisData != nil {
+		qrString = qrisData.QrString
+		qrURL = qrisData.QrURL
 	}
 
 	// Buat record subscription status 'pending'
@@ -107,12 +131,12 @@ func UpgradeSubscription(c echo.Context) error {
 		Plan:           req.Plan,
 		Status:         "pending",
 		Amount:         float64(amount),
-		PaymentGateway: "tripay",
+		PaymentGateway: "midtrans",
 		OrderID:        orderID,
-		TransactionID:  tripayData.Reference,
-		CheckoutURL:    tripayData.CheckoutURL,
-		QrString:       tripayData.QrString,
-		QrURL:          tripayData.QrURL,
+		TransactionID:  "", // dikosongkan — diisi setelah webhook settlement diterima
+		CheckoutURL:    snapData.RedirectURL,
+		QrString:       qrString,
+		QrURL:          qrURL,
 	}
 
 	if err := config.DB.Create(&subHistory).Error; err != nil {
@@ -122,20 +146,22 @@ func UpgradeSubscription(c echo.Context) error {
 
 	// Audit Log
 	utils.LogAuditEvent(userID.String(), "CREATE_PAYMENT", "subscription", map[string]interface{}{
-		"plan":      req.Plan,
-		"order_id":  orderID,
-		"reference": tripayData.Reference,
-		"amount":    amount,
+		"plan":       req.Plan,
+		"order_id":   orderID,
+		"snap_token": snapData.Token,
+		"amount":     amount,
 	})
 
 	return utils.JSONSuccess(c, http.StatusOK, map[string]interface{}{
-		"message":         "Silakan lakukan pembayaran melalui QRIS yang disediakan",
+		"message":         "Silakan lakukan pembayaran melalui Midtrans Snap atau QRIS yang disediakan",
 		"plan":            req.Plan,
 		"order_id":        orderID,
-		"checkout_url":    tripayData.CheckoutURL,
-		"qr_string":       tripayData.QrString,
-		"qr_url":          tripayData.QrURL,
-		"reference":       tripayData.Reference,
+		"snap_token":      snapData.Token,
+		"snap_url":        snapData.RedirectURL,
+		"checkout_url":    snapData.RedirectURL,
+		"qr_string":       qrString,
+		"qr_url":          qrURL,
+		"client_key":      config.AppConfig.MidtransClientKey,
 		"amount":          amount,
 	})
 }

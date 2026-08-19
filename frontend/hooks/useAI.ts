@@ -6,6 +6,8 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
   imageBase64?: string; // Opsional: gambar yang dilampirkan user
+  requires_api_key?: boolean;
+  reason?: string; // "no_key_registered" | "key_invalid_or_quota" | "provider_error"
 }
 
 export type Personality = 'productive' | 'bestie' | 'academic';
@@ -97,6 +99,8 @@ export const useAI = create<AIState>((set, get) => ({
         role: 'assistant',
         content: response.data?.reply || 'Maaf Kak, aku tidak bisa memikirkan jawaban saat ini. Coba kirim lagi ya!',
         timestamp: new Date(),
+        requires_api_key: response.data?.requires_api_key,
+        reason: response.data?.reason,
       };
 
       activeAbortController = null;

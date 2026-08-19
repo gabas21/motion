@@ -60,7 +60,7 @@ export default function QuotaWidget({ onPlanUpgraded }: QuotaWidgetProps) {
 
 	if (isLoading) {
 		return (
-			<div className="bg-white border-3 border-black rounded-2xl shadow-[4px_4px_0px_0px_#000] p-4 flex items-center justify-center h-28">
+			<div className="bg-white border-3 border-black rounded-2xl shadow-[4px_4px_0px_0px_#000] p-4 flex items-center justify-center h-[156px]">
 				<Loader className="w-6 h-6 animate-spin text-neoViolet" />
 			</div>
 		);
@@ -71,7 +71,7 @@ export default function QuotaWidget({ onPlanUpgraded }: QuotaWidgetProps) {
 	const isPro = status.plan === 'pro';
 
 	return (
-		<div className="bg-white border-3 border-black rounded-2xl shadow-[4px_4px_0px_0px_#000] p-4 flex flex-col justify-between relative overflow-hidden transition-all hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[5px_5px_0px_0px_#000]">
+		<div className="bg-white border-3 border-black rounded-2xl shadow-[4px_4px_0px_0px_#000] p-4 flex flex-col justify-between relative overflow-hidden transition-all hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[5px_5px_0px_0px_#000] h-[156px]">
 			{/* Accent Glow */}
 			<div 
 				className="absolute -right-8 -top-8 w-20 h-20 rounded-full opacity-20 pointer-events-none" 

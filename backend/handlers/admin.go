@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"github.com/motion/backend/config"
 	"github.com/motion/backend/models"
 	"github.com/motion/backend/pkg/utils"
+	"github.com/motion/backend/services"
 )
 
 type SystemHealth struct {
@@ -105,16 +107,24 @@ func GetAdminStats(c echo.Context) error {
 	}
 
 	redisHealth := "unhealthy"
-	redisHost := config.AppConfig.RedisHost
-	redisPort := config.AppConfig.RedisPort
-	if redisHost == "" {
-		redisHost = "localhost"
-	}
-	if redisPort == "" {
-		redisPort = "6379"
-	}
-	if pingTCP(redisHost, redisPort) {
-		redisHealth = "healthy"
+	if config.IsRedisAvailable() {
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		if err := config.RedisClient.Ping(ctx).Err(); err == nil {
+			redisHealth = "healthy"
+		}
+		cancel()
+	} else {
+		redisHost := config.AppConfig.RedisHost
+		redisPort := config.AppConfig.RedisPort
+		if redisHost == "" {
+			redisHost = "localhost"
+		}
+		if redisPort == "" {
+			redisPort = "6379"
+		}
+		if pingTCP(redisHost, redisPort) {
+			redisHealth = "healthy"
+		}
 	}
 
 	mailpitHealth := "unhealthy"
@@ -340,14 +350,15 @@ func AdminDeleteUser(c echo.Context) error {
 		return utils.JSONError(c, http.StatusBadRequest, "Anda tidak dapat menghapus akun Anda sendiri")
 	}
 
-	// Delete related data first
-	config.DB.Where("user_id = ?", userID).Delete(&models.Task{})
-	config.DB.Where("user_id = ?", userID).Delete(&models.MoodleConnection{})
-	config.DB.Where("user_id = ?", userID).Delete(&models.CalendarConnection{})
-	config.DB.Where("user_id = ?", userID).Delete(&models.ChatHistory{})
-	config.DB.Where("user_id = ?", userID).Delete(&models.MoodleExcuseLetter{})
+	// Delete related data first (Hard Delete)
+	config.DB.Unscoped().Where("user_id = ?", userID).Delete(&models.Task{})
+	config.DB.Unscoped().Where("user_id = ?", userID).Delete(&models.MoodleConnection{})
+	config.DB.Unscoped().Where("user_id = ?", userID).Delete(&models.CalendarConnection{})
+	config.DB.Unscoped().Where("user_id = ?", userID).Delete(&models.ChatHistory{})
+	config.DB.Unscoped().Where("user_id = ?", userID).Delete(&models.MoodleExcuseLetter{})
 
-	if err := config.DB.Delete(&user).Error; err != nil {
+	// Permanent (Hard) Delete user from Database
+	if err := config.DB.Unscoped().Delete(&user).Error; err != nil {
 		return utils.JSONError(c, http.StatusInternalServerError, "Gagal menghapus user")
 	}
 
@@ -618,4 +629,111 @@ func GetAuditLogs(c echo.Context) error {
 		},
 	})
 }
+
+type AdminAIKeyItem struct {
+	UserID    string                            `json:"userId"`
+	UserName  string                            `json:"userName"`
+	UserEmail string                            `json:"userEmail"`
+	UserRole  string                            `json:"userRole"`
+	Providers map[string]services.ProviderStatus `json:"providers"`
+	UpdatedAt time.Time                         `json:"updatedAt"`
+}
+
+// GET /api/v1/admin/ai-keys — Admin audit view of all user registered API keys
+func GetAdminAIKeys(c echo.Context) error {
+	var aiConfigs []models.UserAIConfig
+	if err := config.DB.Order("updated_at DESC").Find(&aiConfigs).Error; err != nil {
+		return utils.JSONError(c, http.StatusInternalServerError, "Gagal mengambil daftar API Key pengguna")
+	}
+
+	items := []AdminAIKeyItem{}
+	for _, cfg := range aiConfigs {
+		var u models.User
+		if err := config.DB.Select("name, email, role").First(&u, "id = ?", cfg.UserID).Error; err != nil {
+			continue
+		}
+
+		summary, err := services.GetUserAIConfigSummary(cfg.UserID.String())
+		if err != nil || summary == nil {
+			continue
+		}
+
+		items = append(items, AdminAIKeyItem{
+			UserID:    cfg.UserID.String(),
+			UserName:  u.Name,
+			UserEmail: u.Email,
+			UserRole:  u.Role,
+			Providers: summary.Providers,
+			UpdatedAt: cfg.UpdatedAt,
+		})
+	}
+
+	return utils.JSONSuccess(c, http.StatusOK, map[string]interface{}{
+		"total": len(items),
+		"keys":  items,
+	})
+}
+
+// POST /api/v1/admin/ai-keys/validate/:userId/:provider — Admin manual re-validation test call
+func ValidateUserAIKeyAdmin(c echo.Context) error {
+	userIDStr := c.Param("userId")
+	provider := c.Param("provider")
+
+	userUUID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		return utils.JSONError(c, http.StatusBadRequest, "ID user tidak valid")
+	}
+
+	var cfg models.UserAIConfig
+	if err := config.DB.Where("user_id = ?", userUUID).First(&cfg).Error; err != nil {
+		return utils.JSONError(c, http.StatusNotFound, "Konfigurasi AI user tidak ditemukan")
+	}
+
+	var encrypted string
+	switch provider {
+	case "gemini":
+		encrypted = cfg.EncryptedGeminiKey
+	case "groq":
+		encrypted = cfg.EncryptedGroqKey
+	case "openrouter":
+		encrypted = cfg.EncryptedORKey
+	default:
+		return utils.JSONError(c, http.StatusBadRequest, "Provider tidak valid")
+	}
+
+	if encrypted == "" {
+		return utils.JSONError(c, http.StatusBadRequest, "User tidak memiliki key terdaftar untuk provider ini")
+	}
+
+	decrypted, err := utils.DecryptWithSalt(encrypted, userUUID.String())
+	if err != nil || decrypted == "" {
+		return utils.JSONError(c, http.StatusInternalServerError, "Gagal mendeskripsi key user")
+	}
+
+	ctx := c.Request().Context()
+	if err := services.ValidateProviderKey(ctx, provider, decrypted); err != nil {
+		// Mark as invalid in DB
+		services.DeleteUserAIKey(userIDStr, provider)
+		return utils.JSONError(c, http.StatusBadRequest, fmt.Sprintf("Tes koneksi gagal: %v (Key telah dinonaktifkan)", err))
+	}
+
+	return utils.JSONSuccess(c, http.StatusOK, map[string]string{
+		"message": fmt.Sprintf("API Key %s milik user terbukti valid dan aktif!", provider),
+	})
+}
+
+// DELETE /api/v1/admin/ai-keys/:userId/:provider — Admin force revoke malformed/malicious key
+func DeleteUserAIKeyAdmin(c echo.Context) error {
+	userIDStr := c.Param("userId")
+	provider := c.Param("provider")
+
+	if err := services.DeleteUserAIKey(userIDStr, provider); err != nil {
+		return utils.JSONError(c, http.StatusInternalServerError, err.Error())
+	}
+
+	return utils.JSONSuccess(c, http.StatusOK, map[string]string{
+		"message": fmt.Sprintf("API Key %s milik user %s telah dicabut oleh Admin.", provider, userIDStr),
+	})
+}
+
 

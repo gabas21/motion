@@ -20,6 +20,9 @@ type Subscription struct {
 	CheckoutURL    string         `gorm:"type:varchar(512)" json:"checkoutUrl,omitempty"`
 	QrString       string         `gorm:"type:text" json:"qrString,omitempty"`
 	QrURL          string         `gorm:"type:varchar(512)" json:"qrUrl,omitempty"`
+	PaymentType    string         `gorm:"type:varchar(50)" json:"paymentType,omitempty"` // "qris" | "bank_transfer" | "gopay" | "snap"
+	FailedReason   string         `gorm:"type:varchar(255)" json:"failedReason,omitempty"`
+	CancelledAt    *time.Time     `json:"cancelledAt,omitempty"`
 	CreatedAt      time.Time      `json:"createdAt"`
 	UpdatedAt      time.Time      `json:"updatedAt"`
 	DeletedAt      gorm.DeletedAt `gorm:"index" json:"-"`

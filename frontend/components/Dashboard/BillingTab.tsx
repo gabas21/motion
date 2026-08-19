@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { 
   Sparkles, Check, CreditCard, AlertCircle, RefreshCw, 
-  ExternalLink, QrCode, ShieldCheck, Zap, ArrowRight, Info
+  ExternalLink, QrCode, ShieldCheck, Zap, Info, Clock, Receipt
 } from 'lucide-react';
 import API from '../../lib/api';
 import { toast } from '../../hooks/useToast';
@@ -25,25 +25,56 @@ interface PendingPayment {
   createdAt: string;
 }
 
+interface HistoryItem {
+  id: string;
+  orderId: string;
+  plan: string;
+  amount: number;
+  status: string;
+  paymentGateway: string;
+  createdAt: string;
+  expiresAt?: string;
+}
+
 export default function BillingTab() {
   const [quota, setQuota] = useState<Quota | null>(null);
   const [loading, setLoading] = useState(true);
   const [pendingPayment, setPendingPayment] = useState<PendingPayment | null>(null);
   const [upgrading, setUpgrading] = useState(false);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [countdown, setCountdown] = useState<string>('');
+  const [simulating, setSimulating] = useState(false);
+
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchStatus = useCallback(async () => {
     setLoading(true);
     try {
-      // Ambal status & quota
+      // Ambil status kuota
       const qRes = await API.get('/users/quota');
       setQuota(qRes.data.data);
 
+      // Ambil status subscription
       const sRes = await API.get('/subscription/status');
       if (sRes.data.data.has_pending_payment) {
-        setPendingPayment(sRes.data.data.pending_payment);
+        const p = sRes.data.data.pending_payment;
+        setPendingPayment({
+          id: p.id,
+          orderId: p.orderId,
+          plan: p.plan,
+          amount: p.amount,
+          qrUrl: p.qrUrl,
+          checkoutUrl: p.checkoutUrl,
+          status: p.status,
+          createdAt: p.createdAt,
+        });
       } else {
         setPendingPayment(null);
       }
+
+      // Ambil riwayat transaksi
+      const hRes = await API.get('/subscription/history');
+      setHistory(hRes.data.data?.history || []);
     } catch (err: any) {
       console.error('Gagal mengambil status billing:', err);
     } finally {
@@ -55,19 +86,77 @@ export default function BillingTab() {
     fetchStatus();
   }, [fetchStatus]);
 
+  // Polling status real-time saat ada pending payment
+  useEffect(() => {
+    if (!pendingPayment) {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+      return;
+    }
+
+    pollingRef.current = setInterval(async () => {
+      try {
+        const sRes = await API.get('/subscription/status');
+        if (!sRes.data.data.has_pending_payment && sRes.data.data.plan === 'pro') {
+          if (pollingRef.current) clearInterval(pollingRef.current);
+          pollingRef.current = null;
+          toast.success('🎉 Pembayaran berhasil! Akun Anda telah diupgrade ke PRO!');
+          fetchStatus();
+        }
+      } catch (_) {}
+    }, 3000);
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [pendingPayment, fetchStatus]);
+
+  // Countdown timer 15 menit untuk QRIS pending
+  useEffect(() => {
+    if (!pendingPayment) return;
+    const expiryTime = new Date(pendingPayment.createdAt).getTime() + 15 * 60 * 1000;
+
+    const timer = setInterval(() => {
+      const remaining = expiryTime - Date.now();
+      if (remaining <= 0) {
+        setCountdown('EXPIRED');
+        clearInterval(timer);
+        fetchStatus();
+        return;
+      }
+      const mins = Math.floor(remaining / 60000);
+      const secs = Math.floor((remaining % 60000) / 1000);
+      setCountdown(`${mins}:${secs.toString().padStart(2, '0')}`);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [pendingPayment, fetchStatus]);
+
   const handleUpgrade = async () => {
     setUpgrading(true);
     try {
       const res = await API.post('/subscription/upgrade', { plan: 'pro' });
-      toast.success('Invoice pembayaran berhasil dibuat! silakan lakukan scan QRIS.');
-      if (res.data.data.qr_url) {
+      const data = res.data.data;
+
+      if (data.existing) {
+        toast.info(res.data.message || 'Pembayaran Anda sedang menunggu penyelesaian.');
+      } else {
+        toast.success('Invoice pembayaran berhasil dibuat! Silakan lakukan scan QRIS.');
+      }
+
+      if (data.qr_url) {
         setPendingPayment({
-          id: res.data.data.reference,
-          orderId: res.data.data.order_id,
+          id: data.order_id,
+          orderId: data.order_id,
           plan: 'pro',
-          amount: res.data.data.amount,
-          qrUrl: res.data.data.qr_url,
-          checkoutUrl: res.data.data.checkout_url,
+          amount: data.amount,
+          qrUrl: data.qr_url,
+          checkoutUrl: data.checkout_url,
           status: 'pending',
           createdAt: new Date().toISOString()
         });
@@ -77,6 +166,20 @@ export default function BillingTab() {
       toast.error(err.response?.data?.error || 'Gagal memulai upgrade langganan.');
     } finally {
       setUpgrading(false);
+    }
+  };
+
+  const handleSimulatePay = async () => {
+    if (!pendingPayment) return;
+    setSimulating(true);
+    try {
+      await API.post('/subscription/simulate-pay', { order_id: pendingPayment.orderId });
+      toast.success('[DEV] Simulasi pembayaran sukses dikirim! Akun Anda diupgrade ke PRO.');
+      fetchStatus();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Simulasi pembayaran gagal.');
+    } finally {
+      setSimulating(false);
     }
   };
 
@@ -93,7 +196,7 @@ export default function BillingTab() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 text-left">
-      {/* Header */}
+      {/* Header Plan Status */}
       <div className="bg-neoCream border-3 border-black p-6 rounded-2xl shadow-neo flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <span className="text-[10px] font-black text-white bg-black px-2.5 py-1 rounded-full uppercase tracking-wider">
@@ -142,7 +245,7 @@ export default function BillingTab() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-        {/* Left: Detail Paket / Manfaat Pro */}
+        {/* Left: Detail Paket Pro */}
         <div className="bg-white border-3 border-black shadow-neo rounded-2xl p-6 space-y-6">
           <h3 className="text-lg font-black border-b-2 border-black pb-3">
             ✨ Kenapa Harus Paket Pro?
@@ -190,15 +293,23 @@ export default function BillingTab() {
               </div>
 
               {pendingPayment.qrUrl ? (
-                <div className="bg-white border-2 border-black p-4 rounded-xl shadow-neo-sm">
+                <div className="bg-white border-2 border-black p-4 rounded-xl shadow-neo-sm space-y-2">
                   <img 
                     src={pendingPayment.qrUrl} 
                     alt="QRIS Pembayaran" 
                     className="w-48 h-48 mx-auto"
                   />
-                  <div className="text-[10px] font-black text-black mt-2 tracking-wide uppercase flex items-center justify-center gap-1">
+                  <div className="text-[10px] font-black text-black tracking-wide uppercase flex items-center justify-center gap-1">
                     <QrCode size={12} /> SCAN DENGAN E-WALLET / BANK
                   </div>
+
+                  {countdown && (
+                    <div className={`text-xxs font-black flex items-center justify-center gap-1 ${
+                      countdown === 'EXPIRED' ? 'text-red-500' : 'text-zinc-600'
+                    }`}>
+                      <Clock size={12} /> Kedaluwarsa: {countdown}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="py-6">
@@ -208,18 +319,34 @@ export default function BillingTab() {
               )}
 
               <p className="text-xxs text-zinc-500 max-w-[280px] leading-relaxed">
-                Silakan scan QRIS di atas sebelum batas waktu kedaluwarsa. Sistem akan memproses dan mengaktifkan Pro secara instan setelah pembayaran sukses.
+                Scan QRIS di atas sebelum waktu habis. Status akan diperbarui secara otomatis secara real-time.
               </p>
 
-              <div className="flex gap-2 w-full pt-2">
+              <div className="flex flex-col gap-2 w-full pt-2">
                 <a
                   href={pendingPayment.checkoutUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 neo-btn bg-white hover:bg-slate-50 text-black text-xs font-black py-2.5 px-3 rounded-xl border-2 border-black shadow-neo-sm hover:translate-x-[0.5px] hover:translate-y-[0.5px] hover:shadow-none transition-all cursor-pointer text-center flex items-center justify-center gap-1"
+                  className="w-full neo-btn bg-white hover:bg-slate-50 text-black text-xs font-black py-2.5 px-3 rounded-xl border-2 border-black shadow-neo-sm hover:translate-x-[0.5px] hover:translate-y-[0.5px] hover:shadow-none transition-all cursor-pointer text-center flex items-center justify-center gap-1"
                 >
                   Buka Halaman Checkout <ExternalLink size={12} />
                 </a>
+
+                {/* Tombol Simulasi Pembayaran (Hanya tampil di Dev Mode) */}
+                {process.env.NODE_ENV === 'development' && (
+                  <button
+                    onClick={handleSimulatePay}
+                    disabled={simulating}
+                    className="w-full neo-btn bg-neoMint text-black text-xs font-black py-2.5 px-3 rounded-xl border-2 border-black shadow-neo-sm hover:translate-x-[0.5px] hover:translate-y-[0.5px] transition-all cursor-pointer flex items-center justify-center gap-1"
+                  >
+                    {simulating ? (
+                      <RefreshCw className="animate-spin" size={14} />
+                    ) : (
+                      <Zap size={14} className="fill-black" />
+                    )}
+                    <span>[DEV MOCK] Simulasikan Pembayaran Berhasil</span>
+                  </button>
+                )}
               </div>
             </div>
           ) : (
@@ -237,6 +364,59 @@ export default function BillingTab() {
           )}
         </div>
       </div>
+
+      {/* Riwayat Pembayaran & Invoice */}
+      {history.length > 0 && (
+        <div className="bg-white border-3 border-black shadow-neo rounded-2xl p-6 space-y-4">
+          <div className="flex items-center gap-2 border-b-2 border-black pb-3">
+            <Receipt size={18} className="text-black" />
+            <h3 className="text-sm font-black text-black uppercase tracking-wider">
+              Riwayat Pembayaran & Invoice
+            </h3>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs font-mono">
+              <thead>
+                <tr className="border-b-2 border-black text-[10px] font-black uppercase text-left text-zinc-600">
+                  <th className="pb-2 pr-4">Order ID</th>
+                  <th className="pb-2 pr-4">Plan</th>
+                  <th className="pb-2 pr-4">Jumlah</th>
+                  <th className="pb-2 pr-4">Status</th>
+                  <th className="pb-2">Tanggal</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {history.map((item) => (
+                  <tr key={item.id} className="hover:bg-neoCream transition-colors">
+                    <td className="py-2.5 pr-4 text-zinc-700 font-bold">{item.orderId}</td>
+                    <td className="py-2.5 pr-4 font-black uppercase">{item.plan}</td>
+                    <td className="py-2.5 pr-4 font-black">Rp {item.amount.toLocaleString('id-ID')}</td>
+                    <td className="py-2.5 pr-4">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
+                        item.status === 'active' ? 'bg-neoMint border-black text-black' :
+                        item.status === 'pending' ? 'bg-neoYellow border-black text-black' :
+                        'bg-gray-100 border-gray-300 text-gray-500'
+                      }`}>
+                        {item.status.toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="py-2.5 text-zinc-500">
+                      {new Date(item.createdAt).toLocaleDateString('id-ID', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

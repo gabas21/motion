@@ -12,6 +12,17 @@ const API = axios.create({
   timeout: 15000,
 });
 
+// Request interceptor: Sesuaikan baseURL secara dinamis jika diakses dari IP jaringan lokal (misal HP via IP 172.x.x.x / 192.168.x.x)
+API.interceptors.request.use((config) => {
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      config.baseURL = `http://${hostname}:8080/api/v1`;
+    }
+  }
+  return config;
+});
+
 // Flag and queue for managing token refresh
 let isRefreshing = false;
 let failedQueue: any[] = [];
@@ -34,25 +45,27 @@ API.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    // Tangkap error 403 jika akun dinonaktifkan (ACCOUNT_SUSPENDED)
+    if (error.response?.status === 403) {
+      const errData = error.response.data;
+      if (errData?.code === 'ACCOUNT_SUSPENDED' || (typeof errData?.error === 'string' && errData.error.includes('dinonaktifkan'))) {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('motion_user');
+          if (window.location.pathname !== '/auth/suspended') {
+            window.location.href = '/auth/suspended';
+          }
+        }
+        return Promise.reject(error);
+      }
+    }
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
       const isOnAuthPage = pathname.startsWith('/auth');
       const isOnLandingPage = pathname === '/';
       const isPublicPage = isOnAuthPage || isOnLandingPage;
-      const isOnboardingRequest =
-        originalRequest.url?.includes('/auth/me') &&
-        localStorage.getItem('motion_user') !== null;
 
       if (isOnAuthPage) {
-        return Promise.reject(error);
-      }
-
-      if (isOnboardingRequest) {
-        console.warn('[API] 401 saat onboarding — sesi expired, user perlu login ulang.');
-        localStorage.removeItem('motion_user');
-        if (typeof window !== 'undefined' && !isPublicPage) {
-          window.location.href = '/auth/login';
-        }
         return Promise.reject(error);
       }
 

@@ -56,8 +56,8 @@ func ConnectDB() {
 	sqlDB.SetConnMaxLifetime(10 * time.Minute)  // Supabase pooler: koneksi lebih tahan lama
 	sqlDB.SetConnMaxIdleTime(3 * time.Minute)
 
-	// Verifikasi koneksi DB benar-benar dapat dijangkau saat startup dengan retry
-	// (mengatasi Supabase cold start)
+	// Verifikasi koneksi DB dengan retry — flat 2 detik per percobaan (max 10 detik)
+	// Lebih cepat dari sebelumnya (delay exponential i*2 bisa sampai 30 detik)
 	maxRetries := 5
 	var pingErr error
 	for i := 1; i <= maxRetries; i++ {
@@ -66,8 +66,8 @@ func ConnectDB() {
 			break
 		}
 		if i < maxRetries {
-			log.Printf("[DB-Retry] Ping gagal (percobaan %d/%d): %v. Menunggu %d detik...", i, maxRetries, pingErr, i*2)
-			time.Sleep(time.Duration(i*2) * time.Second)
+			log.Printf("[DB-Retry] Ping gagal (percobaan %d/%d): %v. Menunggu 2 detik...", i, maxRetries, pingErr)
+			time.Sleep(2 * time.Second) // flat 2 detik, bukan i*2
 		}
 	}
 	if pingErr != nil {
@@ -76,97 +76,6 @@ func ConnectDB() {
 
 
 	log.Println("Database connection established and ping OK.")
-
-
-	// Auto Migration
-	err = db.AutoMigrate(
-		&models.User{},
-		&models.Task{},
-		&models.CalendarConnection{},
-		&models.CalendarEvent{},
-		&models.SchedulingPreference{},
-		&models.AnalyticsLog{},
-		&models.MoodleConnection{},
-		&models.MoodleCourse{},
-		&models.MoodleAssignment{},
-		&models.MoodleExcuseLetter{},
-		&models.UserAIConfig{},
-		&models.ChatHistory{}, // Persistent memory Asep AI lintas sesi
-		&models.UserUsage{},
-		&models.AuditLog{},    // Audit trail untuk semua aksi penting
-		&models.Subscription{}, // Detail & riwayat transaksi langganan
-		&models.SiakAccount{}, // Akun SIAK yang terhubung
-		&models.SiakGrade{},   // Cache nilai SIAK
-	)
-	if err != nil {
-		log.Fatalf("Failed to run database migrations: %v", err)
-	}
-
-	log.Println("Database migration completed successfully.")
-
-	// Seed super-admin dari environment configuration
-	adminEmail := AppConfig.AdminEmail
-	adminPassword := AppConfig.AdminPassword
-
-	var adminUser models.User
-	result := db.Where("email = ?", adminEmail).First(&adminUser)
-	if result.Error != nil {
-		adminUser = models.User{
-			Email:         adminEmail,
-			Name:          "Admin Motion",
-			Timezone:      "Asia/Jakarta",
-			Role:          "admin",
-			EmailVerified: true, // Admin seed tidak butuh verifikasi email
-		}
-		if err := adminUser.HashPassword(adminPassword); err == nil {
-			if err := db.Create(&adminUser).Error; err != nil {
-				log.Printf("[Admin-Error] Gagal membuat super-admin seed: %v", err)
-			} else {
-				log.Printf("[Admin] Super-admin %s created successfully.", adminEmail)
-			}
-		} else {
-			log.Printf("[Admin-Error] Gagal melakukan hash password admin seed: %v", err)
-		}
-	} else {
-		// Selalu enforce email_verified=true dan role=admin untuk akun admin seed
-		db.Model(&adminUser).Updates(map[string]interface{}{
-			"role":           "admin",
-			"email_verified": true,
-		})
-		// Update password if it doesn't match current environment configuration
-		if !adminUser.CheckPassword(adminPassword) {
-			if err := adminUser.HashPassword(adminPassword); err == nil {
-				db.Model(&adminUser).Updates(map[string]interface{}{
-					"password_hash":  adminUser.PasswordHash,
-					"role":           "admin",
-					"email_verified": true,
-				})
-				log.Printf("[Admin] Password, role, and email_verified updated for existing super-admin %s.", adminEmail)
-			}
-		} else {
-			log.Printf("[Admin] Super-admin role & email_verified enforced for %s.", adminEmail)
-		}
-	}
-
-	// Inisialisasi Ekstensi pgvector & Tabel document_chunks (Untuk Pencarian RAG Semantik)
-	db.Exec("CREATE EXTENSION IF NOT EXISTS vector")
-	err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS document_chunks (
-			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			user_id VARCHAR(36) NOT NULL,
-			document_name VARCHAR(255) NOT NULL,
-			content TEXT NOT NULL,
-			embedding vector(768) NOT NULL,
-			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-		)
-	`).Error
-	if err != nil {
-		log.Printf("[Database-Warn] Gagal memverifikasi tabel document_chunks: %v (Apakah database Supabase mendukung pgvector?)", err)
-	} else {
-		db.Exec("CREATE INDEX IF NOT EXISTS document_chunks_hnsw_idx ON document_chunks USING hnsw (embedding vector_cosine_ops)")
-		db.Exec("CREATE INDEX IF NOT EXISTS idx_document_chunks_user_id ON document_chunks (user_id)")
-		log.Println("Database pgvector document_chunks & index HNSW & user_id index verified successfully.")
-	}
 
 	DB = db
 
@@ -191,6 +100,124 @@ func ConnectDB() {
 			log.Printf("[AUDIT-ERROR] Gagal menyimpan audit log ke DB: %v", err)
 		}
 	})
+
+	// Jalankan migrasi, seeding admin, dan pgvector di goroutine background
+	// agar HTTP server bisa menerima request segera setelah ping berhasil
+	go runDatabaseInit(db)
+}
+
+// runDatabaseInit menjalankan AutoMigrate, seeding admin, dan inisialisasi pgvector
+// di background agar tidak memblokir startup HTTP server.
+func runDatabaseInit(db *gorm.DB) {
+	log.Println("[DB-Init] Memulai migrasi & inisialisasi database di latar belakang...")
+
+	// Auto Migration
+	err := db.AutoMigrate(
+		&models.User{},
+		&models.Task{},
+		&models.CalendarConnection{},
+		&models.CalendarEvent{},
+		&models.SchedulingPreference{},
+		&models.AnalyticsLog{},
+		&models.MoodleConnection{},
+		&models.MoodleCourse{},
+		&models.MoodleAssignment{},
+		&models.MoodleExcuseLetter{},
+		&models.UserAIConfig{},
+		&models.ChatHistory{},
+		&models.UserUsage{},
+		&models.AuditLog{},
+		&models.Subscription{},
+		&models.SiakAccount{},
+		&models.SiakGrade{},
+		&models.SiakSchedule{},
+		&models.SiakExam{},
+		&models.UserSession{},
+		&models.AdminAuditLog{},
+	)
+	if err != nil {
+		log.Printf("[DB-Init] WARN: AutoMigrate gagal: %v", err)
+	} else {
+		log.Println("[DB-Init] AutoMigrate selesai.")
+	}
+
+	// Seed super-admin dari environment configuration
+	adminEmail := AppConfig.AdminEmail
+	adminPassword := AppConfig.AdminPassword
+	if adminEmail != "" && adminPassword != "" {
+		var adminUser models.User
+		result := db.Where("email = ?", adminEmail).First(&adminUser)
+		if result.Error != nil {
+			adminUser = models.User{
+				Email:         adminEmail,
+				Name:          "Admin Motion",
+				Timezone:      "Asia/Jakarta",
+				Role:          "admin",
+				EmailVerified: true,
+			}
+			if err := adminUser.HashPassword(adminPassword); err == nil {
+				if err := db.Create(&adminUser).Error; err != nil {
+					log.Printf("[Admin-Error] Gagal membuat super-admin seed: %v", err)
+				} else {
+					log.Printf("[Admin] Super-admin %s created successfully.", adminEmail)
+				}
+			} else {
+				log.Printf("[Admin-Error] Gagal melakukan hash password admin seed: %v", err)
+			}
+		} else {
+			// Selalu enforce email_verified=true dan role=admin untuk akun admin seed
+			db.Model(&adminUser).Updates(map[string]interface{}{
+				"role":           "admin",
+				"email_verified": true,
+			})
+			// Update password jika tidak cocok dengan konfigurasi environment saat ini
+			if !adminUser.CheckPassword(adminPassword) {
+				if err := adminUser.HashPassword(adminPassword); err == nil {
+					db.Model(&adminUser).Updates(map[string]interface{}{
+						"password_hash":  adminUser.PasswordHash,
+						"role":           "admin",
+						"email_verified": true,
+					})
+					log.Printf("[Admin] Password, role, and email_verified updated for existing super-admin %s.", adminEmail)
+				}
+			} else {
+				log.Printf("[Admin] Super-admin role & email_verified enforced for %s.", adminEmail)
+			}
+		}
+	}
+
+	// Inisialisasi Ekstensi pgvector & Tabel document_chunks
+	db.Exec("CREATE EXTENSION IF NOT EXISTS vector")
+	err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS document_chunks (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			user_id VARCHAR(36) NOT NULL,
+			document_name VARCHAR(255) NOT NULL,
+			content TEXT NOT NULL,
+			embedding vector(768) NOT NULL,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+		)
+	`).Error
+	if err != nil {
+		log.Printf("[DB-Init] WARN: Gagal memverifikasi tabel document_chunks: %v", err)
+	} else {
+		hnswRes := db.Exec("CREATE INDEX IF NOT EXISTS document_chunks_hnsw_idx ON document_chunks USING hnsw (embedding vector_cosine_ops)")
+		if hnswRes.Error != nil {
+			log.Printf("[DB-Init] ⚠️ WARN: Gagal membuat HNSW index untuk document_chunks: %v (Pencarian RAG mungkin lambat!)", hnswRes.Error)
+		} else {
+			log.Println("[DB-Init] HNSW index verified successfully.")
+		}
+
+		userIdIdxRes := db.Exec("CREATE INDEX IF NOT EXISTS idx_document_chunks_user_id ON document_chunks (user_id)")
+		if userIdIdxRes.Error != nil {
+			log.Printf("[DB-Init] ⚠️ WARN: Gagal membuat index user_id untuk document_chunks: %v", userIdIdxRes.Error)
+		} else {
+			log.Println("[DB-Init] index user_id verified successfully.")
+		}
+		log.Println("[DB-Init] pgvector document_chunks structures ready.")
+	}
+
+	log.Println("[DB-Init] Inisialisasi database selesai.")
 }
 
 // QueryCtx mengembalikan context dengan timeout 8 detik untuk query database.

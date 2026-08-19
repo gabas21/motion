@@ -12,7 +12,7 @@ import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import 'katex/dist/katex.min.css';
 
 const SyntaxHighlighter = dynamic(
-  () => import('react-syntax-highlighter').then((mod) => mod.Prism),
+  () => import('react-syntax-highlighter/dist/esm/prism-async-light').then((mod) => mod.default),
   {
     ssr: false,
     loading: () => (
